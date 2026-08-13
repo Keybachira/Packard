@@ -1,4 +1,6 @@
 /// Look-ahead brickwall limiter using a smoothed gain reduction.
+/// Unused until the WASAPI capture loop is wired; kept for the DSP chain.
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug)]
 pub struct Limiter {
     pub ceiling_db: f32,

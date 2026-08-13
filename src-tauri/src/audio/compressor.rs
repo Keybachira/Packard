@@ -1,4 +1,6 @@
 /// Simple feed-forward compressor with an envelope follower.
+/// Unused until the WASAPI capture loop is wired; kept for the DSP chain.
+#[allow(dead_code)]
 #[derive(Clone, Copy, Debug)]
 pub struct Compressor {
     pub threshold_db: f32,

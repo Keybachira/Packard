@@ -45,6 +45,95 @@ export interface CalibrationResult {
   profile?: number[];
 }
 
+// --- Audio Lab -------------------------------------------------------------
+
+export interface AudioLabParams {
+  eq: number[];
+  bass: number;
+  treble: number;
+  balance: number;
+  loudness: boolean;
+  compressor: boolean;
+  limiter: boolean;
+  noiseReduction: number;
+  stereoWidth: number;
+  spatial: boolean;
+  crossfeed: number;
+  gain: number;
+  preamp: number;
+}
+
+// --- Music engine ----------------------------------------------------------
+
+export interface Track {
+  id: string;
+  title: string;
+  artist: string;
+  album: string;
+  durationSecs: number;
+  favorite: boolean;
+  path: string | null;
+}
+
+export interface Playlist {
+  id: string;
+  name: string;
+  trackIds: string[];
+}
+
+export interface PlaybackState {
+  playing: boolean;
+  trackId: string | null;
+  positionSecs: number;
+  shuffle: boolean;
+  repeat: boolean;
+}
+
+// --- Profiles --------------------------------------------------------------
+
+export interface Profile {
+  id: string;
+  name: string;
+  category: string;
+  bass: number;
+  mids: number;
+  treble: number;
+  spatial: boolean;
+  loudness: boolean;
+  subwooferGain: number;
+}
+
+export interface AppProfileBinding {
+  app: string;
+  profileId: string;
+  enabled: boolean;
+}
+
+export interface RoomProfile {
+  name: string;
+  bassResonanceHz: number;
+  correctionDb: number;
+  stereoImbalanceDb: number;
+  curve: number[];
+}
+
+// --- App settings ----------------------------------------------------------
+
+export interface AppSettings {
+  theme: string;
+  language: string;
+  launchOnStartup: boolean;
+  minimizeToTray: boolean;
+  notifications: boolean;
+  checkUpdates: boolean;
+  lastDeviceId: string | null;
+  libraryPaths: string[];
+  spectrumBins: number;
+  profileAutoSwitch: boolean;
+}
+
+// --- Constants -------------------------------------------------------------
+
 export const EQ_BANDS: EqBand[] = [
   { frequency: 32, label: "32Hz", gain: 0 },
   { frequency: 64, label: "64Hz", gain: 0 },
@@ -70,5 +159,23 @@ export function makePreset(name: PresetName): Preset {
     name,
     label: name.charAt(0) + name.slice(1).toLowerCase(),
     gains: PRESETS[name],
+  };
+}
+
+export function defaultAudioLab(): AudioLabParams {
+  return {
+    eq: EQ_BANDS.map((b) => b.gain),
+    bass: 0,
+    treble: 0,
+    balance: 0,
+    loudness: false,
+    compressor: false,
+    limiter: true,
+    noiseReduction: 0,
+    stereoWidth: 100,
+    spatial: false,
+    crossfeed: 0,
+    gain: 0,
+    preamp: 0,
   };
 }
