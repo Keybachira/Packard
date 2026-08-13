@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #0b0d10;
+  --color-surface: #12151a;
+  --color-surface-2: #171b22;
+  --color-border: #22262f;
+  --color-accent: #00e0b2;
+  --color-accent-dim: #0a9e83;
+  --color-text: #e8eaf0;
+  --color-text-dim: #8b91a0;
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+:root {
+  font-family: var(--font-sans);
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background-color: var(--color-bg);
+  overflow: hidden;
+}
+
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+input[type="range"]::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--color-border);
+}
+
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  margin-top: -5px;
+  height: 16px;
+  width: 10px;
+  border-radius: 2px;
+  background: var(--color-accent);
+  border: none;
+}
+
+input[type="range"]:hover::-webkit-slider-thumb {
+  background: #fff;
+}
