@@ -7,12 +7,7 @@ interface IconProps {
   style?: CSSProperties;
 }
 
-function base({
-  size = 18,
-  className,
-  strokeWidth = 1.6,
-  style,
-}: IconProps) {
+function base({ size = 18, className, strokeWidth = 1.6, style }: IconProps) {
   return {
     width: size,
     height: size,

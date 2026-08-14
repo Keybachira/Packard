@@ -22,7 +22,9 @@ export default function EqBand({ label, value, onChange, disabled }: Props) {
       if (!track) return;
       const rect = track.getBoundingClientRect();
       const ratio = (rect.bottom - clientY) / rect.height;
-      const next = Math.round(GAIN_MIN + Math.max(0, Math.min(1, ratio)) * (GAIN_MAX - GAIN_MIN));
+      const next = Math.round(
+        GAIN_MIN + Math.max(0, Math.min(1, ratio)) * (GAIN_MAX - GAIN_MIN),
+      );
       onChange(next);
     },
     [onChange],
@@ -64,10 +66,16 @@ export default function EqBand({ label, value, onChange, disabled }: Props) {
         onPointerUp={onPointerUp}
       >
         <div className="eq-mid-line" />
-        <div className={`eq-fill ${positive ? "" : "neg"}`} style={{ height: `${fillHeight * 100}%` }} />
+        <div
+          className={`eq-fill ${positive ? "" : "neg"}`}
+          style={{ height: `${fillHeight * 100}%` }}
+        />
         <div
           className="eq-handle"
-          style={{ bottom: `${percent}%`, cursor: disabled ? "not-allowed" : "grab" }}
+          style={{
+            bottom: `${percent}%`,
+            cursor: disabled ? "not-allowed" : "grab",
+          }}
         />
       </div>
       <span className="eq-freq">{label}</span>

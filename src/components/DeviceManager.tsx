@@ -26,8 +26,16 @@ export default function DeviceManager({
       </div>
 
       {devices.length === 0 && (
-        <p style={{ color: "var(--text-faint)", fontSize: 12.5, padding: "18px 0", textAlign: "center" }}>
-          Nenhum dispositivo encontrado. Conecte uma soundbar via USB ou Bluetooth.
+        <p
+          style={{
+            color: "var(--text-faint)",
+            fontSize: 12.5,
+            padding: "18px 0",
+            textAlign: "center",
+          }}
+        >
+          Nenhum dispositivo encontrado. Conecte uma soundbar via USB ou
+          Bluetooth.
         </p>
       )}
       {devices.map((device) => (
@@ -38,13 +46,19 @@ export default function DeviceManager({
           style={{ cursor: disabled ? "default" : "pointer" }}
         >
           <div className={`dev-icon ${device.id === selectedId ? "on" : ""}`}>
-            {device.connection === "usb" ? <IconUsb size={18} /> : <IconBluetooth size={18} />}
+            {device.connection === "usb" ? (
+              <IconUsb size={18} />
+            ) : (
+              <IconBluetooth size={18} />
+            )}
           </div>
           <div className="dev-info">
             <div className="n">{device.name}</div>
             <div className={`s ${device.connected ? "on" : ""}`}>
               <span className="d" />
-              {device.connected ? `Conectado · ${Math.round(device.volume)}%` : "Offline"}
+              {device.connected
+                ? `Conectado · ${Math.round(device.volume)}%`
+                : "Offline"}
             </div>
           </div>
           {device.id === selectedId && <span className="badge on">ATIVO</span>}

@@ -86,13 +86,29 @@ export default function PlayerBar() {
             >
               <IconShuffle size={18} />
             </button>
-            <button className="iconBtn scale_icon" title="Anterior" onClick={previous}>
+            <button
+              className="iconBtn scale_icon"
+              title="Anterior"
+              onClick={previous}
+            >
               <IconPrev size={18} />
             </button>
-            <div id="toggle_play" className="iconsWrapper" onClick={togglePause}>
-              {playback.playing ? <IconPause size={26} /> : <IconPlay size={26} />}
+            <div
+              id="toggle_play"
+              className="iconsWrapper"
+              onClick={togglePause}
+            >
+              {playback.playing ? (
+                <IconPause size={26} />
+              ) : (
+                <IconPlay size={26} />
+              )}
             </div>
-            <button className="iconBtn scale_icon" title="Próxima" onClick={next}>
+            <button
+              className="iconBtn scale_icon"
+              title="Próxima"
+              onClick={next}
+            >
               <IconNext size={18} />
             </button>
             <button
@@ -140,10 +156,18 @@ export default function PlayerBar() {
           >
             <IconHeart size={17} />
           </button>
-          <button className="iconBtn smallBtn" title="Biblioteca" onClick={() => setSection("library")}>
+          <button
+            className="iconBtn smallBtn"
+            title="Biblioteca"
+            onClick={() => setSection("library")}
+          >
             <IconMusic size={17} />
           </button>
-          <button className="iconBtn smallBtn" title="Equalizador" onClick={() => setSection("audioLab")}>
+          <button
+            className="iconBtn smallBtn"
+            title="Equalizador"
+            onClick={() => setSection("audioLab")}
+          >
             <IconSliders size={17} />
           </button>
           <button
@@ -151,11 +175,21 @@ export default function PlayerBar() {
             title={deviceSettings.muted ? "Desmutar" : "Mudo"}
             onClick={() => onMute(!deviceSettings.muted)}
           >
-            {deviceSettings.muted ? <IconVolumeX size={17} /> : <IconVolume size={17} />}
+            {deviceSettings.muted ? (
+              <IconVolumeX size={17} />
+            ) : (
+              <IconVolume size={17} />
+            )}
           </button>
         </div>
         <div className="vol_rocker">
-          <span style={{ display: "flex" }}>{deviceSettings.muted ? <IconVolumeX size={16} /> : <IconVolume size={16} />}</span>
+          <span style={{ display: "flex" }}>
+            {deviceSettings.muted ? (
+              <IconVolumeX size={16} />
+            ) : (
+              <IconVolume size={16} />
+            )}
+          </span>
           <div
             className="VolumeRocker"
             onClick={(e) => {
@@ -166,10 +200,14 @@ export default function PlayerBar() {
           >
             <div
               className="base_slider_progress"
-              style={{ width: `${deviceSettings.muted ? 0 : deviceSettings.volume}%` }}
+              style={{
+                width: `${deviceSettings.muted ? 0 : deviceSettings.volume}%`,
+              }}
             />
           </div>
-          <span className="vol-num">{deviceSettings.muted ? "0" : Math.round(deviceSettings.volume)}</span>
+          <span className="vol-num">
+            {deviceSettings.muted ? "0" : Math.round(deviceSettings.volume)}
+          </span>
         </div>
       </div>
     </div>

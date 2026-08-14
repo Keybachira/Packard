@@ -7,7 +7,12 @@ interface Props {
   action?: ReactNode;
 }
 
-export default function Panel({ title, children, className = "", action }: Props) {
+export default function Panel({
+  title,
+  children,
+  className = "",
+  action,
+}: Props) {
   return (
     <section className={`card ${className}`}>
       <div className="card-head">

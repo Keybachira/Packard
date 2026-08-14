@@ -1,10 +1,25 @@
 import { useMemo } from "react";
 import { useApp } from "../context/AppStore";
-import { IconHeart, IconNext, IconPause, IconPlay, IconPrev, IconVolume } from "./icons";
+import {
+  IconHeart,
+  IconNext,
+  IconPause,
+  IconPlay,
+  IconPrev,
+  IconVolume,
+} from "./icons";
 import ProgressBar from "./ProgressBar";
 
 export default function MiniPlayer() {
-  const { playback, library, togglePause, next, previous, favorite, deviceSettings } = useApp();
+  const {
+    playback,
+    library,
+    togglePause,
+    next,
+    previous,
+    favorite,
+    deviceSettings,
+  } = useApp();
 
   const current = useMemo(
     () => library.find((t) => t.id === playback.trackId) ?? null,
@@ -35,14 +50,26 @@ export default function MiniPlayer() {
       </div>
 
       <div className="mini-progress">
-        <ProgressBar position={position} duration={current.durationSecs} compact />
+        <ProgressBar
+          position={position}
+          duration={current.durationSecs}
+          compact
+        />
       </div>
 
       <div className="mini-controls">
-        <span className="ctrl-btn" onClick={previous} style={{ display: "flex" }}>
+        <span
+          className="ctrl-btn"
+          onClick={previous}
+          style={{ display: "flex" }}
+        >
           <IconPrev size={16} />
         </span>
-        <span className="play-btn" onClick={togglePause} style={{ display: "flex" }}>
+        <span
+          className="play-btn"
+          onClick={togglePause}
+          style={{ display: "flex" }}
+        >
           {playback.playing ? <IconPause size={16} /> : <IconPlay size={16} />}
         </span>
         <span className="ctrl-btn" onClick={next} style={{ display: "flex" }}>
@@ -53,7 +80,10 @@ export default function MiniPlayer() {
       <div className="mini-vol">
         <IconVolume size={13} />
         <div className="bar-track">
-          <div className="bar-fill" style={{ width: `${deviceSettings.volume}%` }} />
+          <div
+            className="bar-fill"
+            style={{ width: `${deviceSettings.volume}%` }}
+          />
         </div>
         <span className="num">{Math.round(deviceSettings.volume)}%</span>
       </div>

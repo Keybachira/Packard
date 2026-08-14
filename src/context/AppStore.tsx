@@ -109,12 +109,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [section, setSection] = useState<SectionId>("home");
   const [devices, setDevices] = useState<AudioDevice[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [deviceSettings, setDeviceSettings] = useState<DeviceSettings>(DEFAULT_SETTINGS);
+  const [deviceSettings, setDeviceSettings] =
+    useState<DeviceSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
-  const [audioLab, setAudioLabState] = useState<AudioLabParams>(defaultAudioLab());
+  const [audioLab, setAudioLabState] =
+    useState<AudioLabParams>(defaultAudioLab());
 
   const [calibration, setCalibration] = useState<RoomProfile | null>(null);
   const [calibrating, setCalibrating] = useState(false);
@@ -134,7 +136,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [bindings, setBindings] = useState<AppProfileBinding[]>([]);
   const [foregroundApp, setForegroundApp] = useState<string | null>(null);
 
-  const [appSettings, setAppSettings] = useState<AppSettings>(DEFAULT_APP_SETTINGS);
+  const [appSettings, setAppSettings] =
+    useState<AppSettings>(DEFAULT_APP_SETTINGS);
 
   const notify = useCallback((msg: string) => setStatus(msg), []);
 
@@ -302,7 +305,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     async (patch: Partial<AudioLabParams>) => {
       setAudioLabState((prev) => {
         const next = { ...prev, ...patch };
-        if (selectedId) api.setAudioLab(selectedId, next).catch((e) => setStatus(`Audio lab: ${e}`));
+        if (selectedId)
+          api
+            .setAudioLab(selectedId, next)
+            .catch((e) => setStatus(`Audio lab: ${e}`));
         return next;
       });
     },
@@ -366,7 +372,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const addLibraryFolder = useCallback(async () => {
     try {
-      const picked = await open({ directory: true, multiple: false, title: "Selecionar pasta de música" });
+      const picked = await open({
+        directory: true,
+        multiple: false,
+        title: "Selecionar pasta de música",
+      });
       if (!picked || Array.isArray(picked)) return;
       const nextPaths = appSettings.libraryPaths.includes(picked)
         ? appSettings.libraryPaths
