@@ -18,8 +18,8 @@ export default function DevicesPage() {
   } = useApp();
 
   return (
-    <div className="flex h-full flex-col gap-4">
-      <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
+    <div className="page">
+      <div className="grid" style={{ gridTemplateColumns: "300px 1fr" }}>
         <DeviceManager
           devices={devices}
           selectedId={selectedId}
@@ -28,40 +28,39 @@ export default function DevicesPage() {
           disabled={busy}
         />
 
-        <Panel title="Device Details">
+        <Panel title="DETALHES DO DISPOSITIVO">
           {loading ? (
-            <p className="py-8 text-center text-xs text-text-dim">Scanning…</p>
+            <p style={{ padding: "28px 0", textAlign: "center", fontSize: 12.5, color: "var(--text-faint)" }}>
+              Escaneando…
+            </p>
           ) : selected ? (
-            <div className="space-y-6">
-              <div className="flex items-center gap-3">
-                <span
-                  className={`h-2.5 w-2.5 rounded-full ${selected.connected ? "bg-accent" : "bg-text-dim"}`}
-                />
+            <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span className={selected.connected ? "status-dot" : ""} style={!selected.connected ? { width: 7, height: 7, borderRadius: "50%", background: "var(--text-faint)" } : undefined} />
                 <div>
-                  <h3 className="text-base font-semibold text-text">{selected.name}</h3>
-                  <p className="text-[10px] uppercase tracking-widest text-text-dim">
-                    {selected.connection} · {selected.connected ? "CONNECTED" : "OFFLINE"}
-                  </p>
+                  <div className="device-name" style={{ margin: 0, fontSize: 16 }}>{selected.name}</div>
+                  <div style={{ fontSize: 10.5, letterSpacing: 1, color: "var(--text-faint)", textTransform: "uppercase", marginTop: 2 }}>
+                    {selected.connection} · {selected.connected ? "Conectado" : "Offline"}
+                  </div>
                 </div>
                 <button
+                  className="btn-ghost"
+                  style={{ marginLeft: "auto" }}
                   onClick={() => onMute(!deviceSettings.muted)}
                   disabled={!selected.connected}
-                  className="ml-auto rounded-lg border border-border bg-surface-2 px-3 py-1.5 text-[10px] font-semibold tracking-widest text-text-dim transition-colors hover:text-text"
                 >
-                  {deviceSettings.muted ? "UNMUTE" : "MUTE"}
+                  {deviceSettings.muted ? "ATIVAR SOM" : "MUDO"}
                 </button>
               </div>
 
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="rounded-lg border border-border bg-surface-2/50 p-4">
-                  <p className="mb-1 text-[10px] uppercase tracking-widest text-text-dim">
-                    Master Volume
-                  </p>
-                  <p className="font-mono text-2xl text-text">
+              <div className="grid grid-2">
+                <div className="box">
+                  <div className="box-label">Volume Principal</div>
+                  <div className="box-value num">
                     {deviceSettings.muted ? 0 : deviceSettings.volume}
-                    <span className="text-sm text-text-dim">%</span>
-                  </p>
-                  <div className="mt-2">
+                    <span className="unit">%</span>
+                  </div>
+                  <div style={{ marginTop: 10 }}>
                     <Slider
                       value={deviceSettings.muted ? 0 : deviceSettings.volume}
                       min={0}
@@ -73,34 +72,29 @@ export default function DevicesPage() {
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <SpecRow label="Sample Rate" value="48 kHz" />
-                  <SpecRow label="Bit Depth" value="24-bit" />
-                  <SpecRow label="Channels" value="2.0 (stereo)" />
-                  <SpecRow label="Connection" value={selected.connection.toUpperCase()} />
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  <SpecRow label="Taxa de Amostragem" value="48 kHz" />
+                  <SpecRow label="Profundidade de Bits" value="24-bit" />
+                  <SpecRow label="Canais" value="2.0 (estéreo)" />
+                  <SpecRow label="Conexão" value={selected.connection.toUpperCase()} />
                 </div>
               </div>
             </div>
           ) : (
-            <p className="py-8 text-center text-xs text-text-dim">
-              No device selected. Connect a soundbar to get started.
+            <p style={{ padding: "28px 0", textAlign: "center", fontSize: 12.5, color: "var(--text-faint)" }}>
+              Nenhum dispositivo selecionado. Conecte uma soundbar para começar.
             </p>
           )}
         </Panel>
       </div>
 
-      <Panel title="Future Transport">
-        <div className="flex flex-wrap gap-2">
-          {["USB", "Bluetooth", "HDMI", "DACs", "Headphones", "Microphones", "Audio Interfaces"].map(
-            (t) => (
-              <span
-                key={t}
-                className="rounded-full border border-border bg-surface-2 px-3 py-1 text-[10px] text-text-dim"
-              >
-                {t}
-              </span>
-            ),
-          )}
+      <Panel title="TRANSPORTE FUTURO">
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+          {["USB", "Bluetooth", "HDMI", "DACs", "Fones de Ouvido", "Microfones", "Interfaces de Áudio"].map((t) => (
+            <span key={t} className="chip">
+              {t}
+            </span>
+          ))}
         </div>
       </Panel>
     </div>
@@ -109,9 +103,11 @@ export default function DevicesPage() {
 
 function SpecRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex items-center justify-between rounded-lg border border-border bg-surface-2/50 px-3 py-2">
-      <span className="text-[10px] uppercase tracking-widest text-text-dim">{label}</span>
-      <span className="font-mono text-xs text-text">{value}</span>
+    <div className="box" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "11px 16px" }}>
+      <span style={{ fontSize: 10.5, letterSpacing: 1, color: "var(--text-faint)", textTransform: "uppercase", fontWeight: 700 }}>
+        {label}
+      </span>
+      <span className="num" style={{ fontSize: 12, color: "var(--text)" }}>{value}</span>
     </div>
   );
 }

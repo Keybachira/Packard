@@ -60,6 +60,10 @@ export async function getLibrary(): Promise<Track[]> {
   return invoke<Track[]>("get_library");
 }
 
+export async function scanLibrary(paths: string[]): Promise<Track[]> {
+  return invoke<Track[]>("scan_library", { paths });
+}
+
 export async function getPlaylists(): Promise<Playlist[]> {
   return invoke<Playlist[]>("get_playlists");
 }

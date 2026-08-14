@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useApp } from "../context/AppStore";
 import { formatTime } from "../lib/format";
 import Panel from "../components/Panel";
+import { IconHeart, IconPause, IconPlay } from "../components/icons";
 
 type Filter = "all" | "favorites" | "playlists";
 
@@ -29,112 +30,94 @@ export default function LibraryPage() {
   const totalSecs = library.reduce((s, t) => s + t.durationSecs, 0);
 
   return (
-    <div className="flex h-full flex-col gap-4">
-      <div className="flex gap-2">
+    <div className="page">
+      <div className="tabs">
         {(
           [
-            ["all", "All Tracks"],
-            ["favorites", "Favorites"],
+            ["all", "Todas as Faixas"],
+            ["favorites", "Favoritas"],
             ["playlists", "Playlists"],
           ] as [Filter, string][]
         ).map(([id, label]) => (
-          <button
-            key={id}
-            onClick={() => setFilter(id)}
-            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-              filter === id
-                ? "border-accent bg-accent/10 text-accent"
-                : "border-border bg-surface-2 text-text-dim hover:text-text"
-            }`}
-          >
+          <span key={id} className={`tab ${filter === id ? "active" : ""}`} onClick={() => setFilter(id)}>
             {label}
-          </button>
+          </span>
         ))}
       </div>
 
       {filter === "playlists" && (
-        <div className="flex flex-wrap gap-2">
+        <div className="tabs">
           {playlists.map((pl) => (
-            <button
+            <span
               key={pl.id}
+              className={`tab ${activePlaylist === pl.id ? "active" : ""}`}
               onClick={() => setActivePlaylist(pl.id)}
-              className={`rounded-lg border px-3 py-1.5 text-xs transition-colors ${
-                activePlaylist === pl.id
-                  ? "border-accent text-accent"
-                  : "border-border text-text-dim hover:text-text"
-              }`}
             >
               {pl.name} · {pl.trackIds.length}
-            </button>
+            </span>
           ))}
         </div>
       )}
 
-      <div className="grid flex-1 gap-4 lg:grid-cols-[1fr_260px]">
-        <Panel title={`Tracks · ${filtered.length}`} className="h-full">
-          <div className="space-y-1">
+      <div className="grid grid-3b">
+        <Panel title={`FAIXAS · ${filtered.length}`}>
+          <div style={{ maxHeight: 420, overflowY: "auto" }}>
             {filtered.map((t) => (
-              <div
-                key={t.id}
-                className={`group flex items-center gap-3 rounded-lg border px-3 py-2 transition-colors ${
-                  t.id === playback.trackId
-                    ? "border-accent/50 bg-accent/5"
-                    : "border-transparent hover:border-border hover:bg-surface-2"
-                }`}
-              >
-                <button
-                  onClick={() => playTrack(t.id)}
-                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-surface-2 text-accent transition-colors hover:bg-accent hover:text-black"
-                  title="Play"
-                >
-                  {t.id === playback.trackId && playback.playing ? "❚❚" : "▶"}
-                </button>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs text-text">{t.title}</p>
-                  <p className="truncate text-[10px] text-text-dim">
+              <div key={t.id} className={`track-row ${t.id === playback.trackId ? "active" : ""}`}>
+                <span className="track-play" onClick={() => playTrack(t.id)} style={{ cursor: "pointer" }}>
+                  {t.id === playback.trackId && playback.playing ? <IconPause size={13} /> : <IconPlay size={13} />}
+                </span>
+                <div className="track-info" onClick={() => playTrack(t.id)} style={{ cursor: "pointer" }}>
+                  <div className="t">{t.title}</div>
+                  <div className="s">
                     {t.artist} · {t.album}
-                  </p>
+                  </div>
                 </div>
-                <span className="font-mono text-[10px] text-text-dim">{formatTime(t.durationSecs)}</span>
-                <button
+                <span className="track-time num">{formatTime(t.durationSecs)}</span>
+                <span
+                  className={`track-fav ${t.favorite ? "active" : ""}`}
                   onClick={() => favorite(t.id)}
-                  className={`px-1 text-sm transition-colors ${
-                    t.favorite ? "text-accent" : "text-text-dim/50 hover:text-text"
-                  }`}
-                  title={t.favorite ? "Remove favorite" : "Add favorite"}
+                  title={t.favorite ? "Remover favorita" : "Adicionar aos favoritos"}
                 >
-                  ♥
-                </button>
+                  <IconHeart size={15} />
+                </span>
               </div>
             ))}
+            {filtered.length === 0 && (
+              <p style={{ color: "var(--text-faint)", fontSize: 12.5, padding: "18px 4px" }}>
+                Nenhuma faixa nesta seleção.
+              </p>
+            )}
           </div>
         </Panel>
 
-        <div className="space-y-4">
-          <Panel title="Artists">
-            <div className="space-y-2">
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <Panel title="ARTISTAS">
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
               {artists.map(([name, count]) => (
-                <div key={name} className="flex items-center justify-between text-xs">
-                  <span className="truncate text-text">{name}</span>
-                  <span className="font-mono text-[10px] text-text-dim">{count}</span>
+                <div key={name} style={{ display: "flex", justifyContent: "space-between", fontSize: 12.5 }}>
+                  <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{name}</span>
+                  <span className="num" style={{ color: "var(--text-faint)", fontSize: 11 }}>
+                    {count}
+                  </span>
                 </div>
               ))}
             </div>
           </Panel>
 
-          <Panel title="Library">
-            <div className="space-y-1 text-xs text-text-dim">
-              <p className="flex justify-between">
-                <span>Tracks</span>
-                <span className="font-mono text-text">{library.length}</span>
+          <Panel title="BIBLIOTECA">
+            <div style={{ display: "flex", flexDirection: "column", gap: 8, fontSize: 12.5, color: "var(--text-dim)" }}>
+              <p style={{ display: "flex", justifyContent: "space-between", margin: 0 }}>
+                <span>Faixas</span>
+                <span className="num" style={{ color: "var(--text)" }}>{library.length}</span>
               </p>
-              <p className="flex justify-between">
+              <p style={{ display: "flex", justifyContent: "space-between", margin: 0 }}>
                 <span>Playlists</span>
-                <span className="font-mono text-text">{playlists.length}</span>
+                <span className="num" style={{ color: "var(--text)" }}>{playlists.length}</span>
               </p>
-              <p className="flex justify-between">
-                <span>Duration</span>
-                <span className="font-mono text-text">{formatTime(totalSecs)}</span>
+              <p style={{ display: "flex", justifyContent: "space-between", margin: 0 }}>
+                <span>Duração</span>
+                <span className="num" style={{ color: "var(--text)" }}>{formatTime(totalSecs)}</span>
               </p>
             </div>
           </Panel>

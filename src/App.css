@@ -1,16 +1,18 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #0b0d10;
-  --color-surface: #12151a;
-  --color-surface-2: #171b22;
-  --color-border: #22262f;
-  --color-accent: #00e0b2;
-  --color-accent-dim: #0a9e83;
-  --color-text: #e8eaf0;
-  --color-text-dim: #8b91a0;
-  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  --color-bg: #0a0d0b;
+  --color-surface: #121613;
+  --color-surface-2: #0f1310;
+  --color-border: #212722;
+  --color-accent: #22c55e;
+  --color-accent-dim: #16a34a;
+  --color-accent-2: #4ade80;
+  --color-text: #f4f6f4;
+  --color-text-dim: #9aa39c;
+  --color-text-faint: #5f685f;
+  --font-sans: "Manrope", system-ui, -apple-system, sans-serif;
+  --font-mono: "Space Grotesk", ui-monospace, monospace;
 }
 
 :root {
@@ -33,6 +35,15 @@ body,
 body {
   background-color: var(--color-bg);
   overflow: hidden;
+}
+
+.app {
+  height: 100vh;
+}
+
+.main {
+  height: 100vh;
+  overflow-y: auto;
 }
 
 input[type="range"] {

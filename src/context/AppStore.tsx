@@ -7,6 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { open } from "@tauri-apps/plugin-dialog";
 import * as api from "../lib/deviceApi";
 import type {
   AppProfileBinding,
@@ -23,6 +24,7 @@ import type {
 import { defaultAudioLab, EQ_BANDS } from "../types/audio";
 
 export type SectionId =
+  | "home"
   | "player"
   | "library"
   | "audioLab"
@@ -90,6 +92,8 @@ interface AppStore {
   next: () => Promise<void>;
   previous: () => Promise<void>;
   favorite: (id: string) => Promise<void>;
+  scanning: boolean;
+  addLibraryFolder: () => Promise<void>;
 
   profiles: Profile[];
   bindings: AppProfileBinding[];
@@ -102,7 +106,7 @@ interface AppStore {
 const Store = createContext<AppStore | null>(null);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [section, setSection] = useState<SectionId>("player");
+  const [section, setSection] = useState<SectionId>("home");
   const [devices, setDevices] = useState<AudioDevice[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [deviceSettings, setDeviceSettings] = useState<DeviceSettings>(DEFAULT_SETTINGS);
@@ -117,6 +121,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const [library, setLibrary] = useState<Track[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [scanning, setScanning] = useState(false);
   const [playback, setPlayback] = useState<PlaybackState>({
     playing: false,
     trackId: null,
@@ -159,10 +164,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .then(setPlaylists)
       .catch(() => {});
     api
-      .getPlayback()
-      .then(setPlayback)
-      .catch(() => {});
-    api
       .getProfiles()
       .then(setProfiles)
       .catch(() => {});
@@ -182,6 +183,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
       .then(setForegroundApp)
       .catch(() => {});
   }, [refreshDevices]);
+
+  // Poll real playback state (position ticks from the actual audio backend,
+  // and the queue can auto-advance server-side once a track finishes).
+  useEffect(() => {
+    let cancelled = false;
+    const poll = () => {
+      api
+        .getPlayback()
+        .then((p) => {
+          if (!cancelled) setPlayback(p);
+        })
+        .catch(() => {});
+    };
+    poll();
+    const id = setInterval(poll, 800);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
 
   useEffect(() => {
     if (!selectedId) return;
@@ -343,6 +364,29 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const addLibraryFolder = useCallback(async () => {
+    try {
+      const picked = await open({ directory: true, multiple: false, title: "Selecionar pasta de música" });
+      if (!picked || Array.isArray(picked)) return;
+      const nextPaths = appSettings.libraryPaths.includes(picked)
+        ? appSettings.libraryPaths
+        : [...appSettings.libraryPaths, picked];
+      setScanning(true);
+      try {
+        const tracks = await api.scanLibrary(nextPaths);
+        setLibrary(tracks);
+        setPlaylists([]);
+        notify(`Biblioteca escaneada: ${tracks.length} faixa(s) encontrada(s)`);
+      } finally {
+        setScanning(false);
+      }
+      await saveAppSettings({ libraryPaths: nextPaths });
+    } catch (e) {
+      setStatus(`Library scan failed: ${e}`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appSettings.libraryPaths, notify]);
+
   const saveAppSettings = useCallback(async (patch: Partial<AppSettings>) => {
     setAppSettings((prev) => {
       const next = { ...prev, ...patch };
@@ -382,6 +426,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     next,
     previous,
     favorite,
+    scanning,
+    addLibraryFolder,
     profiles,
     bindings,
     foregroundApp,

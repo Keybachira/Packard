@@ -1,9 +1,11 @@
 mod audio;
 mod hardware;
+mod library;
 mod music;
+mod platform;
+mod playback;
 mod profiles;
 mod settings;
-mod windows;
 
 use audio::equalizer::BAND_FREQUENCIES;
 use audio::AudioLabParams;
@@ -12,14 +14,17 @@ use hardware::devices::DeviceRegistry;
 use music::{MusicEngine, PlaybackState, Playlist, Track};
 use profiles::{AppProfileBinding, Profile, RoomProfile};
 use settings::AppSettings;
-use std::sync::Mutex;
-use tauri::State;
+use std::sync::{Arc, Mutex};
+use tauri::{Manager, State};
 
 /// App-wide state shared across Tauri commands.
 pub struct AppState {
     devices: Mutex<DeviceRegistry>,
     audio: Mutex<audio::DspEngine>,
+    /// Live Audio Lab params consumed by the realtime playback thread.
+    dsp: Arc<playback::SharedDsp>,
     music: Mutex<MusicEngine>,
+    playback: Mutex<playback::PlaybackEngine>,
     /// Dummy spectrum bins fed to the UI until WASAPI capture is wired up.
     spectrum: Mutex<Vec<f32>>,
     /// Dummy waveform samples for the realtime analyzer.
@@ -28,8 +33,7 @@ pub struct AppState {
 
 impl Default for AppState {
     fn default() -> Self {
-        let mut registry = DeviceRegistry::new();
-        registry.seed_demo();
+        let registry = DeviceRegistry::new();
 
         let mut music = MusicEngine::new();
         music.seed_demo();
@@ -37,9 +41,32 @@ impl Default for AppState {
         Self {
             devices: Mutex::new(registry),
             audio: Mutex::new(audio::DspEngine::new(48_000)),
+            dsp: playback::SharedDsp::new(),
             music: Mutex::new(music),
+            playback: Mutex::new(playback::PlaybackEngine::new()),
             spectrum: Mutex::new(vec![0.0; 48]),
             waveform: Mutex::new(vec![0.0; 512]),
+        }
+    }
+}
+
+/// Start (or restart) real playback for `track_id` if the library entry has
+/// a real file path; a no-op for demo tracks without one.
+fn play_track_file(state: &AppState, track_id: &str) {
+    let path = {
+        let music = match state.music.lock() {
+            Ok(m) => m,
+            Err(_) => return,
+        };
+        music.library.iter().find(|t| t.id == track_id).and_then(|t| t.path.clone())
+    };
+    if let Some(path) = path {
+        if let Ok(mut engine) = state.playback.lock() {
+            // Play through the OS default output device; per-endpoint
+            // volume/mute is still controlled via WASAPI on the Devices page.
+            if let Err(e) = engine.play_file(&path, state.dsp.clone(), None) {
+                eprintln!("playback error: {e}");
+            }
         }
     }
 }
@@ -50,7 +77,16 @@ fn err<E: std::fmt::Display>(e: E) -> String {
 
 #[tauri::command]
 fn list_devices(state: State<AppState>) -> Vec<AudioDevice> {
-    state.devices.lock().map_err(err).map(|d| d.list()).unwrap_or_default()
+    let live = platform::wasapi::Wasapi::new().enumerate_render_endpoints();
+    let mut registry = match state.devices.lock() {
+        Ok(g) => g,
+        Err(_) => return live,
+    };
+    registry.sync_from(live);
+    if registry.list().is_empty() {
+        registry.seed_demo();
+    }
+    registry.list()
 }
 
 #[tauri::command]
@@ -71,30 +107,34 @@ fn get_device_settings(state: State<AppState>, _device_id: String) -> DeviceSett
 
 #[tauri::command]
 fn set_volume(state: State<AppState>, device_id: String, volume: f32) -> Result<(), String> {
+    let volume = volume.clamp(0.0, 100.0);
+    platform::wasapi::Wasapi::new().set_endpoint_volume(&device_id, volume / 100.0)?;
     let mut devices = state.devices.lock().map_err(err)?;
-    let device = devices
-        .get_mut(&device_id)
-        .ok_or_else(|| format!("device '{device_id}' not found"))?;
-    device.volume = volume.clamp(0.0, 100.0);
+    if let Some(device) = devices.get_mut(&device_id) {
+        device.volume = volume;
+    }
     Ok(())
 }
 
 #[tauri::command]
 fn set_mute(state: State<AppState>, device_id: String, muted: bool) -> Result<(), String> {
+    platform::wasapi::Wasapi::new().set_endpoint_mute(&device_id, muted)?;
     let mut devices = state.devices.lock().map_err(err)?;
-    let device = devices
-        .get_mut(&device_id)
-        .ok_or_else(|| format!("device '{device_id}' not found"))?;
-    device.muted = muted;
+    if let Some(device) = devices.get_mut(&device_id) {
+        device.muted = muted;
+    }
     Ok(())
 }
 
 #[tauri::command]
 fn set_eq(state: State<AppState>, device_id: String, gains: Vec<f32>) -> Result<(), String> {
     let _ = device_id;
-    let mut audio = state.audio.lock().map_err(err)?;
-    audio.params.eq = gains.clone();
-    audio.rebuild_eq();
+    {
+        let mut audio = state.audio.lock().map_err(err)?;
+        audio.params.eq = gains.clone();
+        audio.rebuild_eq();
+    }
+    state.dsp.update(|p| p.eq = gains);
     Ok(())
 }
 
@@ -118,8 +158,11 @@ fn set_subwoofer(state: State<AppState>, _device_id: String, _state: SubwooferSt
 
 #[tauri::command]
 fn set_audio_lab(state: State<AppState>, _device_id: String, params: AudioLabParams) -> Result<(), String> {
-    let mut audio = state.audio.lock().map_err(err)?;
-    audio.apply_params(params);
+    {
+        let mut audio = state.audio.lock().map_err(err)?;
+        audio.apply_params(params.clone());
+    }
+    state.dsp.set(params);
     Ok(())
 }
 
@@ -145,42 +188,128 @@ fn get_library(state: State<AppState>) -> Vec<Track> {
     state.music.lock().map_err(err).map(|m| m.library.clone()).unwrap_or_default()
 }
 
+/// Walk every configured library folder, read tags, and replace the current
+/// library with the freshly scanned tracks (favorite flags are preserved by
+/// track id across rescans).
+#[tauri::command]
+fn scan_library(state: State<AppState>, paths: Vec<String>) -> Vec<Track> {
+    let mut tracks = library::scan_folders(&paths);
+    let mut music = match state.music.lock() {
+        Ok(g) => g,
+        Err(_) => return tracks,
+    };
+    let favorites: std::collections::HashSet<String> = music
+        .library
+        .iter()
+        .filter(|t| t.favorite)
+        .map(|t| t.id.clone())
+        .collect();
+    for track in tracks.iter_mut() {
+        track.favorite = favorites.contains(&track.id);
+    }
+    music.library = tracks.clone();
+    music.playlists.clear();
+    music.playback = PlaybackState::default();
+    tracks
+}
+
 #[tauri::command]
 fn get_playlists(state: State<AppState>) -> Vec<Playlist> {
     state.music.lock().map_err(err).map(|m| m.playlists.clone()).unwrap_or_default()
 }
 
+/// Whether the track currently pointed to by the queue has a real file on
+/// disk backing it (as opposed to a demo/seeded entry with no path).
+fn current_track_has_file(music: &MusicEngine) -> bool {
+    music
+        .playback
+        .track_id
+        .as_ref()
+        .and_then(|id| music.library.iter().find(|t| &t.id == id))
+        .is_some_and(|t| t.path.is_some())
+}
+
 #[tauri::command]
 fn get_playback(state: State<AppState>) -> PlaybackState {
-    state.music.lock().map_err(err).map(|m| m.playback.clone()).unwrap_or_default()
+    let has_real_current = state.music.lock().map(|m| current_track_has_file(&m)).unwrap_or(false);
+
+    // Auto-advance the queue once the currently playing real file finishes.
+    // Only real (file-backed) tracks ever report `finished`, so demo entries
+    // are never mistakenly skipped.
+    if has_real_current {
+        let finished = state.playback.lock().map(|p| p.finished()).unwrap_or(false);
+        if finished {
+            let mut music = match state.music.lock() {
+                Ok(m) => m,
+                Err(_) => return PlaybackState::default(),
+            };
+            if music.playback.playing {
+                music.next();
+                if let Some(id) = music.playback.track_id.clone() {
+                    drop(music);
+                    play_track_file(&state, &id);
+                }
+            }
+        }
+    }
+
+    let mut playback = state.music.lock().map_err(err).map(|m| m.playback.clone()).unwrap_or_default();
+    if has_real_current && playback.playing {
+        if let Ok(engine) = state.playback.lock() {
+            playback.position_secs = engine.position_secs();
+        }
+    }
+    playback
 }
 
 #[tauri::command]
 fn player_play(state: State<AppState>, track_id: String) -> Result<PlaybackState, String> {
-    let mut music = state.music.lock().map_err(err)?;
-    music.play_track(&track_id)?;
-    Ok(music.playback.clone())
+    {
+        let mut music = state.music.lock().map_err(err)?;
+        music.play_track(&track_id)?;
+    }
+    play_track_file(&state, &track_id);
+    state.music.lock().map_err(err).map(|m| m.playback.clone())
 }
 
 #[tauri::command]
 fn player_toggle_pause(state: State<AppState>) -> Result<PlaybackState, String> {
     let mut music = state.music.lock().map_err(err)?;
     music.toggle_pause();
+    if let Ok(engine) = state.playback.lock() {
+        if music.playback.playing {
+            engine.resume();
+        } else {
+            engine.pause();
+        }
+    }
     Ok(music.playback.clone())
 }
 
 #[tauri::command]
 fn player_next(state: State<AppState>) -> Result<PlaybackState, String> {
-    let mut music = state.music.lock().map_err(err)?;
-    music.next();
-    Ok(music.playback.clone())
+    let track_id = {
+        let mut music = state.music.lock().map_err(err)?;
+        music.next();
+        music.playback.track_id.clone()
+    };
+    if let Some(id) = track_id {
+        play_track_file(&state, &id);
+    }
+    state.music.lock().map_err(err).map(|m| m.playback.clone())
 }
 
 #[tauri::command]
 fn player_previous(state: State<AppState>) -> Result<PlaybackState, String> {
-    let mut music = state.music.lock().map_err(err)?;
-    music.previous();
-    Ok(music.playback.clone())
+    let track_id = {
+        let mut music = state.music.lock().map_err(err)?;
+        music.previous();
+        music.playback.track_id.clone()
+    };
+    if let Some(id) = track_id {
+        play_track_file(&state, &id);
+    }
+    state.music.lock().map_err(err).map(|m| m.playback.clone())
 }
 
 #[tauri::command]
@@ -212,12 +341,9 @@ fn get_app_profile_bindings(_state: State<AppState>) -> Vec<AppProfileBinding> {
     AppProfileBinding::seed()
 }
 
-/// Stub for the foreground-app detection. The real implementation enumerates
-/// foreground windows (GetForegroundWindow + process name) and maps them to a
-/// binding.
 #[tauri::command]
 fn get_foreground_app(_state: State<AppState>) -> String {
-    "Spotify.exe".into()
+    platform::foreground::current_foreground_process_name().unwrap_or_default()
 }
 
 // --- Realtime analyzer -----------------------------------------------------
@@ -283,7 +409,24 @@ fn set_settings(app: tauri::AppHandle, settings: AppSettings) -> Result<(), Stri
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
+        .setup(|app| {
+            // If the user already configured library folders in a previous
+            // session, scan them right away instead of showing demo tracks.
+            let settings = AppSettings::load(app.handle());
+            if !settings.library_paths.is_empty() {
+                let state = app.state::<AppState>();
+                let tracks = library::scan_folders(&settings.library_paths);
+                if !tracks.is_empty() {
+                    if let Ok(mut music) = state.music.lock() {
+                        music.library = tracks;
+                        music.playlists.clear();
+                    }
+                }
+            }
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             list_devices,
             connect_device,
@@ -296,6 +439,7 @@ pub fn run() {
             set_audio_lab,
             run_calibration,
             get_library,
+            scan_library,
             get_playlists,
             get_playback,
             player_play,

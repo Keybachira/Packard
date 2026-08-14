@@ -22,14 +22,14 @@ export default function Slider({
   showValue = true,
 }: Props) {
   return (
-    <label className="block">
+    <label className="field">
       {(label || showValue) && (
-        <div className="mb-1 flex items-center justify-between">
-          {label && <span className="text-[10px] uppercase tracking-widest text-text-dim">{label}</span>}
+        <div className="field-head">
+          {label && <span className="field-label">{label}</span>}
           {showValue && (
-            <span className="font-mono text-[11px] text-text">
+            <span className="field-value num">
               {value}
-              <span className="text-text-dim">{unit}</span>
+              <span className="unit">{unit}</span>
             </span>
           )}
         </div>
@@ -42,7 +42,6 @@ export default function Slider({
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full"
       />
     </label>
   );

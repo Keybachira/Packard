@@ -1,14 +1,15 @@
 import { useState } from "react";
 import { useApp } from "../context/AppStore";
 import Panel from "../components/Panel";
+import { IconArrowRight } from "../components/icons";
 import { EQ_BANDS } from "../types/audio";
 
 const STEPS = [
-  "Signal → test sweep",
-  "Microphone capture",
-  "Frequency analysis",
-  "Resonance detection",
-  "Correction curve",
+  "Sinal → varredura de teste",
+  "Captura do microfone",
+  "Análise de frequência",
+  "Detecção de ressonância",
+  "Curva de correção",
 ];
 
 export default function CalibrationPage() {
@@ -25,44 +26,33 @@ export default function CalibrationPage() {
   };
 
   return (
-    <div className="flex h-full flex-col gap-4">
-      <Panel title="Auto Calibration">
-        <p className="mb-4 max-w-lg text-xs leading-relaxed text-text-dim">
-          The software plays frequency test tones through the soundbar and captures them with the
-          device microphone, measuring the room's acoustic response. It then computes an EQ
-          correction curve for your environment.
+    <div className="page">
+      <Panel title="CALIBRAÇÃO AUTOMÁTICA">
+        <p className="page-lead" style={{ marginBottom: 16 }}>
+          O software reproduz tons de teste de frequência pela soundbar e os captura com o
+          microfone do dispositivo, medindo a resposta acústica do ambiente. Em seguida, calcula
+          uma curva de correção de EQ para o seu ambiente.
         </p>
-        <button
-          onClick={start}
-          disabled={!selectedId || calibrating}
-          className="rounded-lg border border-accent px-6 py-3 text-sm font-semibold tracking-widest text-accent transition-colors hover:bg-accent hover:text-black disabled:opacity-40"
-        >
-          {calibrating ? "CALIBRATING…" : "CALIBRATE"}
+        <button className="btn-cta" style={{ width: "auto" }} onClick={start} disabled={!selectedId || calibrating}>
+          {calibrating ? "CALIBRANDO…" : "CALIBRAR"}
+          <span className="btn-nested-icon">
+            <IconArrowRight size={13} />
+          </span>
         </button>
         {!selectedId && (
-          <p className="mt-2 text-[10px] text-text-dim">Connect a device to calibrate.</p>
+          <p style={{ marginTop: 10, fontSize: 11, color: "var(--text-faint)" }}>Conecte um dispositivo para calibrar.</p>
         )}
       </Panel>
 
       {(calibrating || step > 0) && (
-        <Panel title="Process">
-          <div className="space-y-2">
+        <Panel title="PROCESSO">
+          <div>
             {STEPS.map((s, i) => (
               <div
                 key={s}
-                className={`flex items-center gap-3 text-xs ${
-                  i < step || (i === step && calibrating)
-                    ? "text-text"
-                    : "text-text-dim/50"
-                }`}
+                className={`step-row ${i < step ? "done" : i === step && calibrating ? "active" : ""}`}
               >
-                <span
-                  className={`flex h-5 w-5 items-center justify-center rounded-full border text-[10px] ${
-                    i < step ? "border-accent text-accent" : "border-border"
-                  }`}
-                >
-                  {i < step ? "✓" : i === step && calibrating ? "…" : i + 1}
-                </span>
+                <span className="step-dot">{i < step ? "✓" : i === step && calibrating ? "…" : i + 1}</span>
                 {s}
               </div>
             ))}
@@ -72,48 +62,45 @@ export default function CalibrationPage() {
 
       {calibration && (
         <>
-          <Panel title={`Room Profile · ${calibration.name}`}>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-lg border border-border bg-surface-2/50 px-4 py-3">
-                <p className="text-[10px] uppercase tracking-widest text-text-dim">Bass resonance</p>
-                <p className="mt-1 font-mono text-lg text-text">{calibration.bassResonanceHz} Hz</p>
+          <Panel title={`PERFIL DO AMBIENTE · ${calibration.name}`}>
+            <div className="grid grid-cols-3">
+              <div className="box">
+                <div className="box-label">Ressonância de Graves</div>
+                <div className="box-value num" style={{ fontSize: 18 }}>{calibration.bassResonanceHz} Hz</div>
               </div>
-              <div className="rounded-lg border border-border bg-surface-2/50 px-4 py-3">
-                <p className="text-[10px] uppercase tracking-widest text-text-dim">Correction</p>
-                <p className="mt-1 font-mono text-lg text-accent">{calibration.correctionDb} dB</p>
+              <div className="box accent">
+                <div className="box-label">Correção</div>
+                <div className="box-value num" style={{ fontSize: 18 }}>{calibration.correctionDb} dB</div>
               </div>
-              <div className="rounded-lg border border-border bg-surface-2/50 px-4 py-3">
-                <p className="text-[10px] uppercase tracking-widest text-text-dim">Stereo imbalance</p>
-                <p className="mt-1 font-mono text-lg text-text">{calibration.stereoImbalanceDb} dB</p>
+              <div className="box">
+                <div className="box-label">Desequilíbrio Estéreo</div>
+                <div className="box-value num" style={{ fontSize: 18 }}>{calibration.stereoImbalanceDb} dB</div>
               </div>
             </div>
           </Panel>
 
-          <Panel title="Correction Curve">
-            <div className="flex h-32 items-end gap-1">
+          <Panel title="CURVA DE CORREÇÃO">
+            <div style={{ display: "flex", alignItems: "flex-end", gap: 4, height: 130 }}>
               {calibration.curve.map((g, i) => {
                 const h = ((g + 4) / 12) * 100;
                 return (
                   <div
                     key={i}
-                    className="flex-1 rounded-t bg-accent/70"
+                    className="abar"
                     style={{ height: `${Math.max(4, h)}%` }}
                     title={`${EQ_BANDS[i]?.label}: ${g} dB`}
                   />
                 );
               })}
             </div>
-            <div className="mt-1 flex justify-between text-[10px] text-text-dim">
+            <div style={{ display: "flex", justifyContent: "space-between", marginTop: 8, fontSize: 10.5, color: "var(--text-faint)" }}>
               <span>{EQ_BANDS[0]?.label}</span>
               <span>{EQ_BANDS[EQ_BANDS.length - 1]?.label}</span>
             </div>
           </Panel>
 
-          <button
-            onClick={() => notify("Calibration curve applied to Audio Lab EQ.")}
-            className="rounded-lg border border-accent bg-accent/10 px-4 py-2 text-xs font-semibold tracking-widest text-accent transition-colors hover:bg-accent hover:text-black"
-          >
-            APPLY CALIBRATION
+          <button className="btn-solid" style={{ alignSelf: "flex-start" }} onClick={() => notify("Curva de calibração aplicada ao EQ do Audio Lab.")}>
+            Aplicar Calibração
           </button>
         </>
       )}

@@ -1,114 +1,88 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useApp } from "../context/AppStore";
 import { formatTime } from "../lib/format";
+import Panel from "../components/Panel";
+import ProgressBar from "../components/ProgressBar";
 import SpectrumAnalyzer from "../components/SpectrumAnalyzer";
+import { IconHeart, IconMusic, IconNext, IconPause, IconPlay, IconPrev } from "../components/icons";
 
 export default function PlayerPage() {
-  const { playback, library, playTrack, togglePause, next, previous } = useApp();
-  const [playingTick, setPlayingTick] = useState(0);
-
-  useEffect(() => {
-    if (!playback.playing) return;
-    const id = setInterval(() => setPlayingTick((t) => t + 1), 1000);
-    return () => clearInterval(id);
-  }, [playback.playing]);
+  const { playback, library, playTrack, togglePause, next, previous, favorite } = useApp();
 
   const current = useMemo(
     () => library.find((t) => t.id === playback.trackId) ?? null,
     [library, playback.trackId],
   );
 
-  const position = playback.positionSecs + playingTick;
-
-  const currentMinutes = current ? Math.floor(current.durationSecs / 60) : 0;
+  const position = playback.positionSecs;
 
   return (
-    <div className="flex h-full flex-col gap-6">
-      <div className="flex flex-1 flex-col items-center justify-center gap-8">
-        {/* Cover */}
-        <div
-          className="flex h-56 w-56 items-center justify-center rounded-2xl border border-border bg-surface-2"
-          style={{ boxShadow: "0 0 80px -30px var(--color-accent)" }}
-        >
-          <span className="text-6xl text-accent">♫</span>
-        </div>
-
-        <div className="text-center">
-          <h2 className="text-2xl font-bold text-text">{current?.title ?? "Nothing playing"}</h2>
-          <p className="mt-1 text-sm text-text-dim">{current?.artist ?? "—"}</p>
-          <p className="text-xs text-text-dim/70">{current?.album ?? ""}</p>
-        </div>
-
-        {/* Progress */}
-        <div className="w-full max-w-md">
-          <div className="mb-1 flex justify-between font-mono text-[10px] text-text-dim">
-            <span>{formatTime(position)}</span>
-            <span>{formatTime(current?.durationSecs ?? 0)}</span>
+    <div className="page">
+      <div className="card" style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 20, padding: "34px 20px" }}>
+        <div className="bezel cover-lg-shell">
+          <div className="cover-lg bezel-core">
+            <IconMusic size={54} />
           </div>
-          <input
-            type="range"
-            min={0}
-            max={current?.durationSecs ?? 1}
-            value={Math.min(position, current?.durationSecs ?? 1)}
-            className="w-full"
-            onChange={() => {}}
-            disabled={!current}
-          />
-          <p className="mt-1 text-center text-[10px] text-text-dim">
-            {currentMinutes} min track · {playback.shuffle ? "SHUFFLE" : "SEQ"}
+        </div>
+
+        <div style={{ textAlign: "center" }}>
+          <div style={{ fontSize: 20, fontWeight: 800 }}>{current?.title ?? "Nada tocando"}</div>
+          <div style={{ fontSize: 12.5, color: "var(--text-dim)", marginTop: 4 }}>{current?.artist ?? "—"}</div>
+          <div style={{ fontSize: 11, color: "var(--text-faint)", marginTop: 2 }}>{current?.album ?? ""}</div>
+        </div>
+
+        <div style={{ width: "100%", maxWidth: 420 }}>
+          <ProgressBar position={position} duration={current?.durationSecs ?? 0} />
+          <p style={{ textAlign: "center", fontSize: 10.5, color: "var(--text-faint)", marginTop: 8 }}>
+            {playback.shuffle ? "REPRODUÇÃO ALEATÓRIA" : "REPRODUÇÃO SEQUENCIAL"}
           </p>
         </div>
 
-        {/* Transport */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={previous}
-            disabled={!current}
-            className="rounded-lg border border-border bg-surface-2 px-4 py-2 text-sm text-text-dim transition-colors hover:text-text"
-          >
-            ⏮
+        <div className="transport-lg">
+          <button className="transport-icon" onClick={previous} disabled={!current}>
+            <IconPrev size={22} />
+          </button>
+          <button className="play-btn-lg" onClick={togglePause} disabled={!current}>
+            {playback.playing ? <IconPause size={22} /> : <IconPlay size={22} />}
+          </button>
+          <button className="transport-icon" onClick={next} disabled={!current}>
+            <IconNext size={22} />
           </button>
           <button
-            onClick={togglePause}
+            className="transport-icon"
+            onClick={() => current && favorite(current.id)}
             disabled={!current}
-            className="flex h-14 w-14 items-center justify-center rounded-full bg-accent text-xl text-black transition-transform hover:scale-105"
+            style={{ color: current?.favorite ? "var(--accent-2)" : undefined }}
           >
-            {playback.playing ? "❚❚" : "▶"}
-          </button>
-          <button
-            onClick={next}
-            disabled={!current}
-            className="rounded-lg border border-border bg-surface-2 px-4 py-2 text-sm text-text-dim transition-colors hover:text-text"
-          >
-            ⏭
+            <IconHeart size={20} />
           </button>
         </div>
       </div>
 
-      {/* Queue */}
-      <div className="rounded-xl border border-border bg-surface p-4">
-        <h3 className="mb-2 text-xs font-semibold uppercase tracking-widest text-text-dim">Queue</h3>
-        <div className="max-h-40 space-y-1 overflow-y-auto">
+      <Panel title={`FILA · ${library.length}`}>
+        <div style={{ maxHeight: 230, overflowY: "auto" }}>
           {library.map((t) => (
-            <button
+            <div
               key={t.id}
+              className={`track-row ${t.id === playback.trackId ? "active" : ""}`}
               onClick={() => playTrack(t.id)}
-              className={`flex w-full items-center justify-between rounded-lg px-3 py-2 text-left text-xs transition-colors ${
-                t.id === playback.trackId
-                  ? "bg-accent/10 text-accent"
-                  : "text-text-dim hover:bg-surface-2 hover:text-text"
-              }`}
             >
-              <span className="truncate">{t.title}</span>
-              <span className="ml-3 font-mono text-[10px] text-text-dim/70">
-                {formatTime(t.durationSecs)}
+              <span className="track-play">
+                {t.id === playback.trackId && playback.playing ? <IconPause size={13} /> : <IconPlay size={13} />}
               </span>
-            </button>
+              <div className="track-info">
+                <div className="t">{t.title}</div>
+                <div className="s">{t.artist}</div>
+              </div>
+              <span className="track-time num">{formatTime(t.durationSecs)}</span>
+            </div>
           ))}
         </div>
-      </div>
+      </Panel>
 
-      <SpectrumAnalyzer running={playback.playing} />
+      <Panel title="ESPECTRO">
+        <SpectrumAnalyzer running={playback.playing} />
+      </Panel>
     </div>
   );
 }

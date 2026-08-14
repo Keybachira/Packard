@@ -4,36 +4,33 @@ import Slider from "../components/Slider";
 import Toggle from "../components/Toggle";
 
 export default function SettingsPage() {
-  const { appSettings, saveAppSettings, devices, selectedId, selectDevice, notify } = useApp();
+  const { appSettings, saveAppSettings, devices, selectedId, selectDevice, notify, library, scanning, addLibraryFolder } = useApp();
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-y-auto">
-      <Panel title="Appearance & Language">
-        <div className="grid gap-4 sm:grid-cols-2">
+    <div className="page">
+      <Panel title="APARÊNCIA E IDIOMA">
+        <div className="grid grid-2">
           <div>
-            <p className="mb-2 text-[10px] uppercase tracking-widest text-text-dim">Theme</p>
-            <div className="flex gap-2">
+            <div className="field-label" style={{ marginBottom: 10 }}>Tema</div>
+            <div className="tabs">
               {["dark", "light"].map((t) => (
-                <button
+                <span
                   key={t}
+                  className={`tab ${appSettings.theme === t ? "active" : ""}`}
                   onClick={() => saveAppSettings({ theme: t })}
-                  className={`rounded-lg border px-4 py-2 text-xs font-medium capitalize transition-colors ${
-                    appSettings.theme === t
-                      ? "border-accent bg-accent/10 text-accent"
-                      : "border-border bg-surface-2 text-text-dim hover:text-text"
-                  }`}
                 >
-                  {t}
-                </button>
+                  {t === "dark" ? "Escuro" : "Claro"}
+                </span>
               ))}
             </div>
           </div>
           <div>
-            <p className="mb-2 text-[10px] uppercase tracking-widest text-text-dim">Language</p>
+            <div className="field-label" style={{ marginBottom: 10 }}>Idioma</div>
             <select
               value={appSettings.language}
               onChange={(e) => saveAppSettings({ language: e.target.value })}
-              className="w-full rounded-lg border border-border bg-surface-2 px-3 py-2 text-xs text-text"
+              className="btn-ghost"
+              style={{ width: "100%", textAlign: "left", fontWeight: 600 }}
             >
               <option value="en">English</option>
               <option value="pt">Português</option>
@@ -42,56 +39,52 @@ export default function SettingsPage() {
         </div>
       </Panel>
 
-      <Panel title="Default Device">
-        <p className="mb-3 text-xs text-text-dim">
-          Automatically reconnects to this device on startup.
+      <Panel title="DISPOSITIVO PADRÃO">
+        <p className="page-lead" style={{ marginBottom: 12 }}>
+          Reconecta automaticamente a este dispositivo na inicialização.
         </p>
-        <div className="flex flex-wrap gap-2">
+        <div className="tabs">
           {devices.map((d) => (
-            <button
+            <span
               key={d.id}
+              className={`tab ${selectedId === d.id ? "active" : ""}`}
               onClick={() => {
                 selectDevice(d.id);
                 saveAppSettings({ lastDeviceId: d.id });
-                notify(`Default device: ${d.name}`);
+                notify(`Dispositivo padrão: ${d.name}`);
               }}
-              className={`rounded-lg border px-3 py-1.5 text-xs transition-colors ${
-                selectedId === d.id
-                  ? "border-accent bg-accent/10 text-accent"
-                  : "border-border bg-surface-2 text-text-dim hover:text-text"
-              }`}
             >
               {d.name}
-            </button>
+            </span>
           ))}
           {devices.length === 0 && (
-            <p className="text-xs text-text-dim">No devices found yet.</p>
+            <p style={{ fontSize: 12.5, color: "var(--text-faint)" }}>Nenhum dispositivo encontrado ainda.</p>
           )}
         </div>
       </Panel>
 
-      <Panel title="Startup & Behavior">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-3">
+      <Panel title="INICIALIZAÇÃO E COMPORTAMENTO">
+        <div className="grid grid-2">
+          <div className="box" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <Toggle
-              label="Launch on startup"
+              label="Iniciar com o sistema"
               checked={appSettings.launchOnStartup}
               onChange={(v) => saveAppSettings({ launchOnStartup: v })}
             />
             <Toggle
-              label="Minimize to tray"
+              label="Minimizar para a bandeja"
               checked={appSettings.minimizeToTray}
               onChange={(v) => saveAppSettings({ minimizeToTray: v })}
             />
           </div>
-          <div className="space-y-3">
+          <div className="box" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <Toggle
-              label="Notifications"
+              label="Notificações"
               checked={appSettings.notifications}
               onChange={(v) => saveAppSettings({ notifications: v })}
             />
             <Toggle
-              label="Check for updates"
+              label="Verificar atualizações"
               checked={appSettings.checkUpdates}
               onChange={(v) => saveAppSettings({ checkUpdates: v })}
             />
@@ -99,29 +92,42 @@ export default function SettingsPage() {
         </div>
       </Panel>
 
-      <Panel title="Audio">
-        <div className="grid gap-4 sm:grid-cols-2">
+      <Panel title="ÁUDIO">
+        <div className="grid grid-2">
           <Slider
-            label="Spectrum bins"
+            label="Barras do espectro"
             value={appSettings.spectrumBins}
             min={16}
             max={128}
             step={8}
             onChange={(spectrumBins) => saveAppSettings({ spectrumBins })}
           />
-          <div className="flex items-end">
-            <button
-              onClick={() => notify("Library paths editor coming soon.")}
-              className="rounded-lg border border-border bg-surface-2 px-4 py-2 text-xs text-text-dim hover:text-text"
-            >
-              MANAGE LIBRARY PATHS ({appSettings.libraryPaths.length})
+          <div style={{ display: "flex", alignItems: "flex-end" }}>
+            <button className="btn-ghost" onClick={addLibraryFolder} disabled={scanning}>
+              {scanning ? "Escaneando…" : "Adicionar Pasta de Música"}
             </button>
           </div>
         </div>
+        <div className="box" style={{ marginTop: 14 }}>
+          <div className="box-label">Pastas da Biblioteca ({appSettings.libraryPaths.length}) · {library.length} faixa(s)</div>
+          {appSettings.libraryPaths.length === 0 ? (
+            <p style={{ fontSize: 12.5, color: "var(--text-faint)", margin: 0 }}>
+              Nenhuma pasta configurada. Adicione uma pasta com músicas do seu PC para a biblioteca ser escaneada de verdade.
+            </p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {appSettings.libraryPaths.map((p) => (
+                <span key={p} className="num" style={{ fontSize: 11.5, color: "var(--text-dim)", wordBreak: "break-all" }}>
+                  {p}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
       </Panel>
 
-      <p className="text-center text-[10px] text-text-dim/60">
-        SoundCore desktop · settings stored in app config dir
+      <p style={{ textAlign: "center", fontSize: 10.5, color: "var(--text-faint)" }}>
+        SoundCore desktop · configurações salvas no diretório de config do app
       </p>
     </div>
   );

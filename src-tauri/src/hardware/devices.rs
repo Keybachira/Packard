@@ -39,14 +39,25 @@ impl DeviceRegistry {
         self.devices.clear();
     }
 
-    /// Seed with a placeholder so the UI has something to show before the
-    /// hardware enumeration is implemented.
+    /// Replace the registry contents with a freshly enumerated device list
+    /// (from WASAPI), keeping it as the source of truth between calls so
+    /// `set_volume`/`set_mute`/`connect_device` have something to look up.
+    pub fn sync_from(&mut self, devices: Vec<AudioDevice>) {
+        self.devices.clear();
+        for device in devices {
+            self.insert(device);
+        }
+    }
+
+    /// Seed with a placeholder so the UI has something to show if real
+    /// hardware enumeration ever comes back empty (e.g. audio subsystem
+    /// unavailable).
     pub fn seed_demo(&mut self) {
         if self.devices.is_empty() {
-            let mut demo = AudioDevice::offline("demo-soundbar", "Soundbar X1", ConnectionType::Usb);
-            demo.connected = true;
-            demo.volume = 72.0;
-            demo.supports_eq = true;
+            let mut demo = AudioDevice::offline("demo-soundbar", "Nenhum dispositivo detectado", ConnectionType::None);
+            demo.connected = false;
+            demo.volume = 0.0;
+            demo.supports_eq = false;
             self.insert(demo);
         }
     }

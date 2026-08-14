@@ -1,21 +1,15 @@
 import type { ReactNode } from "react";
 import { useApp } from "../context/AppStore";
-import Equalizer from "../components/Equalizer";
+import Equalizer, { isFlatEq } from "../components/Equalizer";
 import Panel from "../components/Panel";
 import Slider from "../components/Slider";
 import Toggle from "../components/Toggle";
 
-function LabRow({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
+function LabRow({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="rounded-lg border border-border bg-surface-2/50 px-4 py-3">
-      <p className="mb-3 text-[10px] uppercase tracking-widest text-text-dim">{label}</p>
-      <div className="space-y-3">{children}</div>
+    <div className="box">
+      <div className="box-label">{label}</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>{children}</div>
     </div>
   );
 }
@@ -25,15 +19,22 @@ export default function AudioLabPage() {
   const disabled = !selectedId;
 
   return (
-    <div className="flex h-full flex-col gap-4 overflow-y-auto">
-      <Panel title="Equalizer">
-        <Equalizer gains={audioLab.eq} onChange={(gains) => setAudioLab({ eq: gains })} disabled={disabled} />
+    <div className="page">
+      <Panel
+        title="EQUALIZADOR"
+        action={
+          <button className="btn-ghost" onClick={() => setAudioLab({ eq: audioLab.eq.map(() => 0) })} disabled={disabled}>
+            {isFlatEq(audioLab.eq) ? "FLAT" : "Redefinir"}
+          </button>
+        }
+      >
+        <Equalizer gains={audioLab.eq} onChange={(eq) => setAudioLab({ eq })} disabled={disabled} />
       </Panel>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        <LabRow label="Tone">
+      <div className="grid grid-cols-3">
+        <LabRow label="Tom">
           <Slider
-            label="Bass"
+            label="Graves"
             value={audioLab.bass}
             min={0}
             max={12}
@@ -42,7 +43,7 @@ export default function AudioLabPage() {
             disabled={disabled}
           />
           <Slider
-            label="Treble"
+            label="Agudos"
             value={audioLab.treble}
             min={0}
             max={12}
@@ -51,7 +52,7 @@ export default function AudioLabPage() {
             disabled={disabled}
           />
           <Slider
-            label="Balance"
+            label="Balanço"
             value={audioLab.balance}
             min={-100}
             max={100}
@@ -61,9 +62,9 @@ export default function AudioLabPage() {
           />
         </LabRow>
 
-        <LabRow label="Gain Staging">
+        <LabRow label="Estágio de Ganho">
           <Slider
-            label="Preamp"
+            label="Pré-amplificador"
             value={audioLab.preamp}
             min={-12}
             max={12}
@@ -72,7 +73,7 @@ export default function AudioLabPage() {
             disabled={disabled}
           />
           <Slider
-            label="Gain"
+            label="Ganho"
             value={audioLab.gain}
             min={-12}
             max={12}
@@ -81,7 +82,7 @@ export default function AudioLabPage() {
             disabled={disabled}
           />
           <Slider
-            label="Stereo Width"
+            label="Largura Estéreo"
             value={audioLab.stereoWidth}
             min={0}
             max={200}
@@ -91,9 +92,9 @@ export default function AudioLabPage() {
           />
         </LabRow>
 
-        <LabRow label="Enhance">
+        <LabRow label="Aprimoramento">
           <Slider
-            label="Noise Reduction"
+            label="Redução de Ruído"
             value={audioLab.noiseReduction}
             min={0}
             max={100}
@@ -119,40 +120,34 @@ export default function AudioLabPage() {
         </LabRow>
       </div>
 
-      <Panel title="Dynamics">
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div className="space-y-3 rounded-lg border border-border bg-surface-2/50 px-4 py-3">
+      <Panel title="DINÂMICA">
+        <div className="grid grid-cols-3">
+          <div className="box">
             <Toggle
               label="Compressor"
               checked={audioLab.compressor}
               onChange={(compressor) => setAudioLab({ compressor })}
               disabled={disabled}
             />
-            <p className="text-[10px] leading-relaxed text-text-dim">
-              Tames peaks. Feed-forward envelope, ratio 4:1.
-            </p>
+            <p className="box-note">Domina picos. Envelope feed-forward, proporção 4:1.</p>
           </div>
-          <div className="space-y-3 rounded-lg border border-border bg-surface-2/50 px-4 py-3">
+          <div className="box">
             <Toggle
               label="Limiter"
               checked={audioLab.limiter}
               onChange={(limiter) => setAudioLab({ limiter })}
               disabled={disabled}
             />
-            <p className="text-[10px] leading-relaxed text-text-dim">
-              Brickwall at −1 dB. Protects the soundbar from clipping.
-            </p>
+            <p className="box-note">Teto rígido em −1 dB. Protege a soundbar contra clipping.</p>
           </div>
-          <div className="space-y-3 rounded-lg border border-border bg-surface-2/50 px-4 py-3">
+          <div className="box">
             <Toggle
-              label="Spatial Audio"
+              label="Áudio Espacial"
               checked={audioLab.spatial}
               onChange={(spatial) => setAudioLab({ spatial })}
               disabled={disabled}
             />
-            <p className="text-[10px] leading-relaxed text-text-dim">
-              Widens the stage. Forwarded to the hardware when supported.
-            </p>
+            <p className="box-note">Amplia o palco sonoro. Repassado ao hardware quando suportado.</p>
           </div>
         </div>
       </Panel>

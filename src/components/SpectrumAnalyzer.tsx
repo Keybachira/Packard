@@ -2,7 +2,6 @@ import { useEffect, useRef } from "react";
 import { getSpectrum } from "../lib/deviceApi";
 
 const BARS = 48;
-const COLORS = ["#0a9e83", "#00e0b2", "#e8eaf0"];
 
 export default function SpectrumAnalyzer({ running }: { running: boolean }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -43,10 +42,12 @@ export default function SpectrumAnalyzer({ running }: { running: boolean }) {
         const x = i * (barW + 2);
         const y = height - h;
 
-        const color = COLORS[Math.min(2, Math.floor((i / BARS) * 3))];
+        const style = getComputedStyle(canvas);
+        const accent = style.getPropertyValue("--accent").trim() || "#22c55e";
+        const accent2 = style.getPropertyValue("--accent-2").trim() || "#4ade80";
         const grad = ctx.createLinearGradient(0, y, 0, height);
-        grad.addColorStop(0, color);
-        grad.addColorStop(1, "rgba(18,21,26,0.4)");
+        grad.addColorStop(0, accent2);
+        grad.addColorStop(1, accent);
 
         ctx.fillStyle = grad;
         ctx.beginPath();
@@ -74,8 +75,9 @@ export default function SpectrumAnalyzer({ running }: { running: boolean }) {
   return (
     <canvas
       ref={canvasRef}
-      className="h-32 w-full rounded-lg bg-surface"
-      aria-label="Real-time spectrum analyzer"
+      className="canvas-surface"
+      style={{ height: 170 }}
+      aria-label="Analisador de espectro em tempo real"
     />
   );
 }
