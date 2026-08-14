@@ -39,6 +39,8 @@ export default function HomePage() {
     runCalibration,
     calibration,
     profiles,
+    library,
+    playlists,
     setSection,
     notify,
   } = useApp();
@@ -71,6 +73,22 @@ export default function HomePage() {
 
   return (
     <div className="grid" style={{ display: "grid", gap: 16 }}>
+      {/* FLB stat cards */}
+      <div className="stats">
+        {[
+          { label: "Dispositivos", value: devices.length, icon: <IconSpeaker size={18} />, onClick: () => setSection("devices") },
+          { label: "Faixas", value: library.length, icon: <IconMusic size={18} />, onClick: () => setSection("library") },
+          { label: "Playlists", value: playlists.length, icon: <IconHeadphones size={18} />, onClick: () => setSection("library") },
+          { label: "Perfis", value: profiles.length, icon: <IconSliders size={18} />, onClick: () => setSection("profiles") },
+        ].map((s) => (
+          <div className="stat-card" key={s.label} onClick={s.onClick}>
+            <span className="stat-ic">{s.icon}</span>
+            <div className="stat-num num">{s.value}</div>
+            <div className="stat-lbl">{s.label}</div>
+          </div>
+        ))}
+      </div>
+
       {/* Row 1: Device + Volume + Analyzer */}
       <div className="grid grid-3">
         <div className="card">

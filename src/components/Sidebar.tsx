@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useApp, type SectionId } from "../context/AppStore";
 import MiniPlayer from "./MiniPlayer";
 import {
@@ -27,9 +27,10 @@ const SECTIONS: { id: SectionId; label: string; icon: ReactNode }[] = [
 
 export default function Sidebar() {
   const { section, setSection } = useApp();
+  const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${collapsed ? "collapsed" : ""}`}>
       <div className="brand">
         <div className="brand-bars">
           {[10, 18, 14, 22, 12].map((h, i) => (
@@ -53,9 +54,10 @@ export default function Sidebar() {
               key={s.id}
               className={`nav-item ${active ? "active" : ""}`}
               onClick={() => setSection(s.id)}
+              title={collapsed ? s.label : undefined}
             >
               {s.icon}
-              {s.label}
+              <span className="nav-label">{s.label}</span>
             </div>
           );
         })}
@@ -63,6 +65,13 @@ export default function Sidebar() {
 
       <div className="nav-spacer" />
       <MiniPlayer />
+      <button
+        className="nav-toggle"
+        onClick={() => setCollapsed((c) => !c)}
+        title={collapsed ? "Expandir menu" : "Recolher menu"}
+      >
+        {collapsed ? "»" : "«"}
+      </button>
     </aside>
   );
 }

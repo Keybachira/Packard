@@ -1,0 +1,567 @@
+/* ============================================================
+   FLB DESIGN SYSTEM OVERRIDES
+   Design language copied from FLB-Music-Player (Vue + Electron)
+   → React + Tauri "Soundcore". Accent: Soundcore green kept.
+   ============================================================ */
+
+/* ---- 1. Design tokens ---- */
+:root {
+  --accentColor: #22c55e;
+  --radius: 20px;
+  --ease-flb: cubic-bezier(0.32, 0.72, 0, 1);
+
+  /* Translucent overlay surfaces (FLB bg1..bg4) */
+  --bg1: rgba(255, 255, 255, 0.05);
+  --bg2: rgba(255, 255, 255, 0.1);
+  --bg3: rgba(255, 255, 255, 0.16);
+  --bg4: rgba(255, 255, 255, 0.22);
+
+  /* Remap solid panels → translucent overlays */
+  --panel: var(--bg1);
+  --panel-2: var(--bg2);
+  --track: rgba(255, 255, 255, 0.14);
+  --border: rgba(255, 255, 255, 0.16);
+  --border-soft: rgba(255, 255, 255, 0.07);
+}
+html.light {
+  --accentColor: #16a34a;
+  --bg1: rgba(255, 255, 255, 0.55);
+  --bg2: rgba(255, 255, 255, 0.78);
+  --bg3: rgba(255, 255, 255, 0.92);
+  --bg4: #ffffff;
+  --panel: var(--bg1);
+  --panel-2: var(--bg2);
+  --track: rgba(0, 0, 0, 0.12);
+  --border: rgba(0, 0, 0, 0.14);
+  --border-soft: rgba(0, 0, 0, 0.07);
+}
+
+/* ---- 2. Typography (FLB Roboto family) ---- */
+body {
+  font-family: "Roboto", system-ui, -apple-system, sans-serif;
+}
+.roboto-thin {
+  font-weight: 100;
+}
+.roboto-light {
+  font-weight: 300;
+}
+.roboto-thick {
+  font-weight: 900;
+}
+
+/* ---- 3. App shell: sidebar becomes a floating rounded panel ---- */
+.app {
+  grid-template-columns: auto 1fr;
+}
+.sidebar {
+  background: var(--bg2);
+  border: none;
+  border-radius: var(--radius);
+  margin: 12px;
+  height: calc(100vh - 24px);
+  width: 232px;
+  padding: 18px 12px;
+  position: sticky;
+  top: 0;
+  box-shadow: var(--shadow);
+  transition: width 0.32s var(--ease-flb);
+}
+.sidebar.collapsed {
+  width: 64px;
+}
+.sidebar.collapsed .brand {
+  justify-content: center;
+  padding: 4px 0 20px;
+}
+.sidebar.collapsed .brand-text,
+.sidebar.collapsed .nav-label,
+.sidebar.collapsed .mini-player {
+  display: none;
+}
+.sidebar.collapsed .nav-item {
+  justify-content: center;
+  padding: 10px;
+}
+.sidebar.collapsed .nav-toggle {
+  justify-content: center;
+  padding: 0;
+}
+
+/* Brand */
+.brand {
+  padding: 4px 10px 20px;
+}
+.nav {
+  gap: 4px;
+}
+.nav-item {
+  border-radius: 15px;
+  font-weight: 500;
+}
+.nav-item:hover {
+  background: var(--bg3);
+}
+/* FLB: active group = solid accent surface */
+.nav-item.active {
+  background: var(--accentColor);
+  color: #06210f;
+  border-color: transparent;
+}
+.nav-item.active::before {
+  display: none;
+}
+html.light .nav-item.active {
+  color: #fff;
+}
+.nav-item.active svg {
+  color: currentColor;
+}
+
+/* Sidebar collapse toggle */
+.nav-toggle {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  border-radius: 15px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  width: 100%;
+  transition: background 0.2s var(--ease-flb), color 0.2s var(--ease-flb);
+}
+.nav-toggle:hover {
+  background: var(--bg3);
+  color: var(--text);
+}
+
+/* Mini player inside sidebar → FLB surface */
+.mini-player {
+  background: var(--bg1);
+  border: none;
+  border-radius: 15px;
+}
+
+/* ---- 4. Topbar / search (FLB TabsPaneHeader pill) ---- */
+.topbar {
+  margin-bottom: 18px;
+}
+.search {
+  background: var(--bg1);
+  border: none;
+  border-radius: var(--radius);
+  padding: 11px 18px;
+  transition: border-radius 0.4s var(--ease-flb), background 0.2s var(--ease-flb);
+}
+.search:focus-within {
+  background: var(--bg2);
+  border-radius: 10px;
+}
+.icon-btn {
+  background: var(--bg1);
+  border: none;
+  border-radius: 14px;
+}
+.icon-btn:hover {
+  background: var(--bg2);
+  border: none;
+}
+.user-chip {
+  background: var(--bg1);
+  border: none;
+  border-radius: 14px;
+}
+
+/* ---- 5. Cards / panels: translucent, rounded 20 ---- */
+.card {
+  background: var(--panel);
+  border-color: var(--border-soft);
+  border-radius: var(--radius);
+}
+.card:hover {
+  border-color: var(--border);
+}
+.bezel {
+  background: var(--bg1);
+  border: none;
+}
+
+/* ---- 6. Tabs → FLB pill tabs (TabSwitcher) ---- */
+.tabs {
+  gap: 8px;
+}
+.tab {
+  background: var(--bg1);
+  border: none;
+  border-radius: var(--radius);
+  padding: 9px 18px;
+  font-weight: 500;
+  transition: border-radius 0.4s var(--ease-flb), background 0.2s var(--ease-flb),
+    color 0.2s var(--ease-flb);
+}
+.tab:hover {
+  background: var(--bg2);
+  border-radius: 10px;
+  color: var(--text);
+}
+.tab.active {
+  background: var(--accentColor);
+  border-radius: var(--radius);
+  color: #06210f;
+  font-weight: 700;
+}
+html.light .tab.active {
+  color: #fff;
+}
+
+/* ---- 7. Player bar → FLB PlayingPane ---- */
+.player-bar {
+  position: sticky;
+  bottom: 12px;
+  margin-top: 18px;
+  z-index: 20;
+  border: none;
+}
+.playingPane {
+  width: 100%;
+  border-radius: 20px;
+  background: var(--bg2);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 100px;
+  padding: 0;
+}
+.playingPane .split {
+  width: 80%;
+  display: flex;
+  height: 100%;
+}
+
+/* Left: album art + track info */
+.playingPane .left_pane_section {
+  padding: 10px;
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: 25%;
+  min-width: 0;
+}
+.playingPane .album_art {
+  width: 70px;
+  height: 70px;
+  margin: 5px;
+  border-radius: 15px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.playingPane .track_info {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+.playingPane .track_title,
+.playingPane .track_artist {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  margin: 0;
+}
+.playingPane .track_title {
+  font-size: 0.9rem;
+  font-family: roboto-light;
+  color: var(--text);
+}
+.playingPane .track_artist {
+  font-size: 0.8rem;
+  font-family: roboto-thin;
+  color: var(--text-dim);
+  cursor: pointer;
+  margin-top: 2px;
+}
+.playingPane .track_artist:hover {
+  text-decoration: underline;
+}
+
+/* Center: actions + track bar */
+.playingPane .center_pane_section {
+  width: 60%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px;
+}
+.playingPane .t_actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.playingPane .scale_icon svg {
+  transform: scale(1.5);
+}
+.playingPane #toggle_play {
+  height: 34px;
+  width: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text);
+  transition: transform 0.2s var(--ease-flb);
+}
+.playingPane #toggle_play:hover {
+  transform: scale(1.15);
+}
+
+/* FLB BaseButton iconBtn */
+.playingPane .iconBtn {
+  height: 40px;
+  width: 40px;
+  border-radius: 35%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  font-family: "Roboto", sans-serif;
+  border: none;
+  background: var(--bg1);
+  color: var(--text-dim);
+  transition: border-radius 0.2s var(--ease-flb), background 0.2s var(--ease-flb),
+    color 0.2s var(--ease-flb);
+  padding: 0;
+}
+.playingPane .iconBtn:hover {
+  border-radius: 50%;
+  background: linear-gradient(200deg, transparent, var(--accentColor));
+  color: var(--text);
+}
+.playingPane .iconBtn:active {
+  border: 2px solid rgb(255, 255, 255);
+}
+.playingPane .iconBtn.activeBtn {
+  background: var(--accentColor);
+  color: #06210f;
+}
+html.light .playingPane .iconBtn.activeBtn {
+  color: #fff;
+}
+.playingPane .iconBtn.smallBtn {
+  height: 35px;
+  width: 35px;
+}
+.playingPane .iconBtn.smallBtn svg {
+  transform: none;
+}
+
+/* TrackBar */
+.playingPane .TrackBar {
+  position: relative;
+  z-index: 25;
+  height: 30px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+.playingPane .progressInfoCard {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
+}
+.playingPane .progressInfoCard p {
+  font-family: roboto-light;
+  font-size: 0.8em;
+  color: var(--text-dim);
+  margin: 0;
+}
+.playingPane .seekBar {
+  background: var(--track);
+  width: 100%;
+  height: 6px;
+  position: relative;
+  border-radius: 10px;
+}
+.playingPane .seekBar:active {
+  height: 8px;
+}
+.playingPane .seekBar .seekProgress {
+  border-radius: 10px;
+  position: absolute;
+  height: 140%;
+  bottom: -1px;
+  width: 0%;
+  background: #ffffff;
+  transition: background 0.2s linear;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.playingPane .seekBar:hover .seekProgress {
+  background: var(--accentColor);
+}
+html.light .playingPane .seekBar .seekProgress {
+  background: var(--accent);
+}
+.playingPane #hoverTime {
+  position: absolute;
+  top: 0;
+  transform: translateY(-130%);
+  opacity: 0;
+  left: 0%;
+  z-index: 2;
+  font-family: roboto-light;
+  font-size: 0.8em;
+  padding: 2px 6px;
+  border-radius: 10px;
+  text-align: center;
+  background: var(--accentColor);
+  color: #06210f;
+  pointer-events: none;
+  white-space: nowrap;
+}
+html.light .playingPane #hoverTime {
+  color: #fff;
+}
+.playingPane .seekBar:hover #hoverTime {
+  opacity: 1;
+}
+
+/* Right: actions + volume rocker */
+.playingPane .right_pane_section {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  width: 20%;
+  padding: 0 10px;
+}
+.playingPane .right_pane_section .flex {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.playingPane .vol_rocker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-dim);
+}
+.playingPane .VolumeRocker {
+  position: relative;
+  width: 110px;
+  height: 6px;
+  border-radius: 10px;
+  background: var(--bg1);
+  cursor: pointer;
+}
+.playingPane .VolumeRocker:hover .base_slider_progress {
+  background: var(--accentColor);
+}
+.playingPane .base_slider_progress {
+  position: absolute;
+  border-radius: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  left: 0;
+  height: 150%;
+  background: #ffffff;
+  max-width: 100%;
+  transition: background 0.2s linear;
+}
+html.light .playingPane .base_slider_progress {
+  background: var(--accent);
+}
+.playingPane .vol-num {
+  font-family: roboto-light;
+  font-size: 0.75em;
+  color: var(--text-faint);
+  width: 26px;
+  text-align: right;
+}
+
+/* ---- 8. Home stat cards (FLB HomeTab) ---- */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+.stat-card {
+  position: relative;
+  overflow: hidden;
+  background: var(--accentColor);
+  border-radius: 15px;
+  padding: 18px;
+  color: #06210f;
+  cursor: pointer;
+  box-shadow: 0 8px 20px -10px rgba(34, 197, 94, 0.45);
+  transition: border-radius 0.35s var(--ease-flb), transform 0.18s var(--ease-flb),
+    box-shadow 0.3s var(--ease-flb);
+}
+.stat-card:hover {
+  border-top-left-radius: 30px;
+  border-bottom-right-radius: 30px;
+  transform: translateY(-1px);
+  box-shadow: 0 14px 28px -12px rgba(34, 197, 94, 0.55);
+}
+html.light .stat-card {
+  color: #fff;
+}
+.stat-card .stat-ic {
+  position: absolute;
+  right: 14px;
+  top: 14px;
+  opacity: 0.9;
+}
+.stat-num {
+  font-size: 30px;
+  font-weight: 900;
+  line-height: 1;
+}
+.stat-lbl {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-top: 6px;
+  opacity: 0.85;
+}
+
+/* ---- 9. Shared surfaces ---- */
+.box {
+  background: var(--bg1);
+  border: none;
+  border-radius: 14px;
+}
+.feat,
+.shortcut,
+.dev-icon {
+  background: var(--bg1);
+  border: none;
+}
+.chip {
+  background: var(--bg1);
+  border: none;
+}
+.track-row:hover {
+  background: var(--bg2);
+}
+.track-row.active {
+  background: rgba(34, 197, 94, 0.16);
+}
+.btn-outline,
+.btn-ghost {
+  background: var(--bg1);
+}
