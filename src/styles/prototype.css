@@ -374,6 +374,8 @@ button:active:not(:disabled),
 .main {
   padding: 20px 26px 34px;
   min-width: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
 }
 .topbar {
   display: flex;

@@ -1,6 +1,7 @@
 use rustfft::num_complex::Complex32;
 use rustfft::FftPlanner;
 use std::collections::VecDeque;
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 const TAP_CAPACITY: usize = 8192;
@@ -10,13 +11,27 @@ const TAP_CAPACITY: usize = 8192;
 /// analysis, so FFT work never happens on the realtime audio thread.
 pub struct AudioTap {
     buffer: Mutex<VecDeque<f32>>,
+    sample_rate: AtomicU32,
+    pushed_frames: AtomicU64,
 }
 
 impl AudioTap {
     pub fn new() -> Arc<Self> {
         Arc::new(Self {
             buffer: Mutex::new(VecDeque::with_capacity(TAP_CAPACITY)),
+            sample_rate: AtomicU32::new(48_000),
+            pushed_frames: AtomicU64::new(0),
         })
+    }
+
+    /// Record the sample rate of the stream feeding this tap (used for FFT
+    /// bin frequency mapping).
+    pub fn set_sample_rate(&self, rate: u32) {
+        self.sample_rate.store(rate.max(1), Ordering::Relaxed);
+    }
+
+    pub fn sample_rate(&self) -> u32 {
+        self.sample_rate.load(Ordering::Relaxed)
     }
 
     /// Push a batch of interleaved multi-channel samples, downmixed to mono.
@@ -34,6 +49,22 @@ impl AudioTap {
         while buf.len() > TAP_CAPACITY {
             buf.pop_front();
         }
+        drop(buf);
+        self.pushed_frames
+            .fetch_add((interleaved.len() / channels) as u64, Ordering::Relaxed);
+    }
+
+    /// Total mono frames pushed so far (diagnostics).
+    pub fn frames_pushed(&self) -> u64 {
+        self.pushed_frames.load(Ordering::Relaxed)
+    }
+
+    /// Number of mono samples currently buffered (diagnostics).
+    pub fn len(&self) -> usize {
+        let Ok(buf) = self.buffer.lock() else {
+            return 0;
+        };
+        buf.len()
     }
 
     pub fn snapshot(&self, n: usize) -> Vec<f32> {
@@ -46,13 +77,6 @@ impl AudioTap {
         }
         let take = n.min(len);
         buf.iter().skip(len - take).copied().collect()
-    }
-
-    pub fn is_silent(&self) -> bool {
-        let Ok(buf) = self.buffer.lock() else {
-            return true;
-        };
-        buf.is_empty() || buf.iter().all(|s| s.abs() < 1e-4)
     }
 }
 
@@ -121,4 +145,19 @@ pub fn waveform_samples(tap: &AudioTap, count: usize) -> Option<Vec<f32>> {
         return None;
     }
     Some(samples.iter().map(|s| (s * 0.5 + 0.5).clamp(0.0, 1.0)).collect())
+}
+
+/// Real levels from the most recent audio: (peak 0..1, rms 0..1, lufs dBFS).
+/// Returns `(0.0, 0.0, -70.0)` when no audio has been captured yet.
+pub fn levels(tap: &AudioTap, window: usize) -> (f32, f32, f32) {
+    let snap = tap.snapshot(window);
+    if snap.is_empty() {
+        return (0.0, 0.0, -70.0);
+    }
+    let peak = snap.iter().fold(0.0f32, |m, s| m.max(s.abs()));
+    let mean_sq = snap.iter().map(|s| s * s).sum::<f32>() / snap.len() as f32;
+    let rms = mean_sq.sqrt();
+    // Short-term loudness (approximation of ITU-R BS.1770 without gating).
+    let lufs = 10.0 * (mean_sq + 1e-9).log10() - 0.691;
+    (peak.min(1.0), rms.min(1.0), lufs.clamp(-70.0, 0.0))
 }

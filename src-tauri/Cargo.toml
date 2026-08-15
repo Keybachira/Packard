@@ -29,6 +29,12 @@ rodio = "0.22.2"
 tauri-plugin-dialog = "2.7.2"
 cpal = "0.17"
 rustfft = "6.4.1"
+axum = { version = "0.8", features = ["ws"] }
+tokio = { version = "1", features = ["rt-multi-thread", "net", "sync", "macros", "time", "fs"] }
+futures-util = "0.3"
+qrcode = { version = "0.14", features = ["svg"] }
+rand = "0.8"
+local-ip-address = "0.6"
 
 [profile.dev]
 # Reduce disk usage on constrained machines; strips full debuginfo.

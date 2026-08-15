@@ -57,7 +57,7 @@ export default function PlayerBar() {
         {/* LEFT: album art + track info */}
         <div className="left_pane_section">
           <div
-            className="album_art"
+            className={`album_art ${playback.playing ? "playing" : ""}`}
             style={{
               background: "var(--accent-soft)",
               display: "flex",

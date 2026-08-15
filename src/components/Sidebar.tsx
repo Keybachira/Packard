@@ -9,19 +9,21 @@ import {
   IconPulse,
   IconSettings,
   IconSliders,
+  IconSmartphone,
   IconSpeaker,
 } from "./icons";
 
 const SECTIONS: { id: SectionId; label: string; icon: ReactNode }[] = [
-  { id: "home", label: "Página Inicial", icon: <IconHome size={18} /> },
-  { id: "player", label: "Reprodutor", icon: <IconHeadphones size={18} /> },
+  { id: "home", label: "Início", icon: <IconHome size={18} /> },
+  { id: "player", label: "Minha Música", icon: <IconHeadphones size={18} /> },
   { id: "library", label: "Biblioteca", icon: <IconLibrary size={18} /> },
   { id: "audioLab", label: "Audio Lab", icon: <IconSliders size={18} /> },
   { id: "calibration", label: "Calibração", icon: <IconMic size={18} /> },
   { id: "devices", label: "Dispositivos", icon: <IconSpeaker size={18} /> },
   { id: "analyzer", label: "Analisador", icon: <IconPulse size={18} /> },
   { id: "profiles", label: "Perfis", icon: <IconSliders size={18} /> },
-  { id: "appProfiles", label: "App Profiles", icon: <IconLibrary size={18} /> },
+  { id: "appProfiles", label: "Perfis de Apps", icon: <IconLibrary size={18} /> },
+  { id: "remote", label: "Controle Remoto", icon: <IconSmartphone size={18} /> },
   { id: "settings", label: "Configurações", icon: <IconSettings size={18} /> },
 ];
 

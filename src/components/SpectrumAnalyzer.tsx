@@ -3,14 +3,9 @@ import { getSpectrum } from "../lib/deviceApi";
 
 const BARS = 48;
 
-export default function SpectrumAnalyzer({ running }: { running: boolean }) {
+export default function SpectrumAnalyzer() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
-  const runningRef = useRef(running);
-
-  useEffect(() => {
-    runningRef.current = running;
-  }, [running]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -57,13 +52,11 @@ export default function SpectrumAnalyzer({ running }: { running: boolean }) {
     };
 
     const loop = async () => {
-      if (runningRef.current) {
-        try {
-          const bins = await getSpectrum();
-          draw(bins);
-        } catch {
-          draw(fallback);
-        }
+      try {
+        const bins = await getSpectrum();
+        draw(bins);
+      } catch {
+        draw(fallback);
       }
       rafRef.current = requestAnimationFrame(loop);
     };

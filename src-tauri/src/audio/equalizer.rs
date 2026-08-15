@@ -13,8 +13,6 @@ pub struct EqBand {
 #[derive(Clone, Debug)]
 pub struct Equalizer {
     pub bands: Vec<EqBand>,
-    /// Set of frequencies for the realtime spectrum.
-    pub spectrum_bins: Vec<f32>,
     filters: Vec<Biquad>,
 }
 
@@ -55,7 +53,6 @@ impl Default for Equalizer {
             .collect();
         let mut eq = Self {
             bands,
-            spectrum_bins: vec![0.0; 48],
             filters: Vec::new(),
         };
         eq.rebuild_filters(48000);

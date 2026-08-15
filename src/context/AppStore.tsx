@@ -4,6 +4,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
@@ -19,9 +20,14 @@ import type {
   Playlist,
   Profile,
   RoomProfile,
+  ToastItem,
+  ToastVariant,
   Track,
 } from "../types/audio";
 import { defaultAudioLab, EQ_BANDS } from "../types/audio";
+
+const TOAST_LIFETIME_MS = 4200;
+const NOTIFICATION_HISTORY_LIMIT = 30;
 
 export type SectionId =
   | "home"
@@ -33,6 +39,7 @@ export type SectionId =
   | "analyzer"
   | "profiles"
   | "appProfiles"
+  | "remote"
   | "settings";
 
 const DEFAULT_SETTINGS: DeviceSettings = {
@@ -54,6 +61,10 @@ const DEFAULT_APP_SETTINGS: AppSettings = {
   libraryPaths: [],
   spectrumBins: 48,
   profileAutoSwitch: false,
+  onboarded: false,
+  accent: "#22c55e",
+  username: "",
+  avatar: "",
 };
 
 interface AppStore {
@@ -67,7 +78,16 @@ interface AppStore {
   loading: boolean;
   busy: boolean;
   status: string | null;
-  notify: (msg: string) => void;
+  notify: (msg: string, variant?: ToastVariant) => void;
+  toasts: ToastItem[];
+  dismissToast: (id: string) => void;
+  notifications: ToastItem[];
+  hasUnreadNotifications: boolean;
+  markNotificationsRead: () => void;
+  clearNotifications: () => void;
+
+  miniMode: boolean;
+  toggleMiniMode: () => Promise<void>;
 
   refreshDevices: () => Promise<void>;
   selectDevice: (id: string) => Promise<void>;
@@ -86,6 +106,7 @@ interface AppStore {
 
   library: Track[];
   playlists: Playlist[];
+  queue: Track[];
   playback: PlaybackState;
   playTrack: (id: string) => Promise<void>;
   togglePause: () => Promise<void>;
@@ -100,6 +121,7 @@ interface AppStore {
   foregroundApp: string | null;
 
   appSettings: AppSettings;
+  settingsReady: boolean;
   saveAppSettings: (patch: Partial<AppSettings>) => Promise<void>;
 }
 
@@ -115,6 +137,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const [notifications, setNotifications] = useState<ToastItem[]>([]);
+  const [hasUnreadNotifications, setHasUnreadNotifications] = useState(false);
+  const toastTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  const [miniMode, setMiniMode] = useState(false);
+
   const [audioLab, setAudioLabState] =
     useState<AudioLabParams>(defaultAudioLab());
 
@@ -123,6 +152,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const [library, setLibrary] = useState<Track[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [queue, setQueue] = useState<Track[]>([]);
   const [scanning, setScanning] = useState(false);
   const [playback, setPlayback] = useState<PlaybackState>({
     playing: false,
@@ -138,8 +168,77 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const [appSettings, setAppSettings] =
     useState<AppSettings>(DEFAULT_APP_SETTINGS);
+  const [settingsReady, setSettingsReady] = useState(false);
 
-  const notify = useCallback((msg: string) => setStatus(msg), []);
+  const dismissToast = useCallback((id: string) => {
+    setToasts((prev) => prev.filter((t) => t.id !== id));
+    const timer = toastTimers.current.get(id);
+    if (timer) {
+      clearTimeout(timer);
+      toastTimers.current.delete(id);
+    }
+  }, []);
+
+  const pushToast = useCallback(
+    (message: string, variant: ToastVariant = "info") => {
+      // Keep the legacy bottom status pill in sync for any code still
+      // reading `status` directly.
+      setStatus(message);
+
+      const item: ToastItem = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        message,
+        variant,
+        time: Date.now(),
+      };
+
+      setNotifications((prev) => [item, ...prev].slice(0, NOTIFICATION_HISTORY_LIMIT));
+      setHasUnreadNotifications(true);
+
+      if (appSettings.notifications === false) return;
+
+      setToasts((prev) => [...prev, item]);
+      const timer = setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== item.id));
+        toastTimers.current.delete(item.id);
+      }, TOAST_LIFETIME_MS);
+      toastTimers.current.set(item.id, timer);
+    },
+    [appSettings.notifications],
+  );
+
+  useEffect(() => {
+    const timers = toastTimers.current;
+    return () => {
+      timers.forEach((t) => clearTimeout(t));
+      timers.clear();
+    };
+  }, []);
+
+  const notify = useCallback(
+    (msg: string, variant: ToastVariant = "info") => pushToast(msg, variant),
+    [pushToast],
+  );
+
+  const markNotificationsRead = useCallback(() => setHasUnreadNotifications(false), []);
+  const clearNotifications = useCallback(() => {
+    setNotifications([]);
+    setHasUnreadNotifications(false);
+  }, []);
+
+  const toggleMiniMode = useCallback(async () => {
+    try {
+      if (miniMode) {
+        await api.exitMiniMode();
+        setMiniMode(false);
+      } else {
+        await api.enterMiniMode();
+        setMiniMode(true);
+      }
+    } catch (e) {
+      pushToast(`Modo mini falhou: ${e}`, "error");
+    }
+  }, [miniMode, pushToast]);
 
   const selected = useMemo(
     () => devices.find((d) => d.id === selectedId) ?? null,
@@ -152,7 +251,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setDevices(list);
       setSelectedId((prev) => prev ?? list[0]?.id ?? null);
     } catch (e) {
-      setStatus(`Error listing devices: ${e}`);
+      notify(`Erro ao listar dispositivos: ${e}`, "error");
     }
   }, []);
 
@@ -180,7 +279,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setAppSettings(s);
         if (s.lastDeviceId) setSelectedId(s.lastDeviceId);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setSettingsReady(true));
     api
       .getForegroundApp()
       .then(setForegroundApp)
@@ -196,6 +296,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
         .getPlayback()
         .then((p) => {
           if (!cancelled) setPlayback(p);
+        })
+        .catch(() => {});
+      api
+        .getQueue()
+        .then((q) => {
+          if (!cancelled) setQueue(q);
         })
         .catch(() => {});
     };
@@ -225,7 +331,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const updated = await api.connectDevice(id, "usb");
       setDevices((prev) => prev.map((d) => (d.id === id ? updated : d)));
     } catch (e) {
-      setStatus(`Connect failed: ${e}`);
+      notify(`Falha ao conectar: ${e}`, "error");
     } finally {
       setBusy(false);
     }
@@ -238,7 +344,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         try {
           await api.setVolume(selectedId, volume);
         } catch (e) {
-          setStatus(`Volume failed: ${e}`);
+          notify(`Falha ao ajustar volume: ${e}`, "error");
         }
       }
     },
@@ -252,7 +358,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         try {
           await api.setMute(selectedId, muted);
         } catch (e) {
-          setStatus(`Mute failed: ${e}`);
+          notify(`Falha ao silenciar: ${e}`, "error");
         }
       }
     },
@@ -266,7 +372,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         try {
           await api.setEq(selectedId, gains);
         } catch (e) {
-          setStatus(`EQ failed: ${e}`);
+          notify(`Falha ao aplicar EQ: ${e}`, "error");
         }
       }
     },
@@ -280,7 +386,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         try {
           await api.applyPreset(selectedId, preset);
         } catch (e) {
-          setStatus(`Preset failed: ${e}`);
+          notify(`Falha ao aplicar preset: ${e}`, "error");
         }
       }
     },
@@ -294,7 +400,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         try {
           await api.setSubwoofer(selectedId, sub);
         } catch (e) {
-          setStatus(`Subwoofer failed: ${e}`);
+          notify(`Falha no subwoofer: ${e}`, "error");
         }
       }
     },
@@ -308,7 +414,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         if (selectedId)
           api
             .setAudioLab(selectedId, next)
-            .catch((e) => setStatus(`Audio lab: ${e}`));
+            .catch((e) => notify(`Erro no Audio Lab: ${e}`, "error"));
         return next;
       });
     },
@@ -321,10 +427,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       const result = await api.runCalibration(selectedId);
       setCalibration(result);
-      setStatus("Calibration complete");
+      notify("Calibração concluída", "success");
       if (result.curve) await api.setEq(selectedId, result.curve);
     } catch (e) {
-      setStatus(`Calibration failed: ${e}`);
+      notify(`Falha na calibração: ${e}`, "error");
     } finally {
       setCalibrating(false);
     }
@@ -334,7 +440,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       setPlayback(await api.playerPlay(id));
     } catch (e) {
-      setStatus(`Play failed: ${e}`);
+      notify(`Falha ao reproduzir: ${e}`, "error");
     }
   }, []);
 
@@ -342,7 +448,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       setPlayback(await api.playerTogglePause());
     } catch (e) {
-      setStatus(`Pause failed: ${e}`);
+      notify(`Falha ao pausar: ${e}`, "error");
     }
   }, []);
 
@@ -350,7 +456,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       setPlayback(await api.playerNext());
     } catch (e) {
-      setStatus(`Next failed: ${e}`);
+      notify(`Falha ao avançar: ${e}`, "error");
     }
   }, []);
 
@@ -358,7 +464,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       setPlayback(await api.playerPrevious());
     } catch (e) {
-      setStatus(`Previous failed: ${e}`);
+      notify(`Falha ao voltar: ${e}`, "error");
     }
   }, []);
 
@@ -366,7 +472,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       setLibrary(await api.toggleFavorite(id));
     } catch (e) {
-      setStatus(`Favorite failed: ${e}`);
+      notify(`Falha ao favoritar: ${e}`, "error");
     }
   }, []);
 
@@ -386,13 +492,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         const tracks = await api.scanLibrary(nextPaths);
         setLibrary(tracks);
         setPlaylists([]);
-        notify(`Biblioteca escaneada: ${tracks.length} faixa(s) encontrada(s)`);
+        notify(`Biblioteca escaneada: ${tracks.length} faixa(s) encontrada(s)`, "success");
       } finally {
         setScanning(false);
       }
       await saveAppSettings({ libraryPaths: nextPaths });
     } catch (e) {
-      setStatus(`Library scan failed: ${e}`);
+      notify(`Falha ao escanear a biblioteca: ${e}`, "error");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appSettings.libraryPaths, notify]);
@@ -400,7 +506,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const saveAppSettings = useCallback(async (patch: Partial<AppSettings>) => {
     setAppSettings((prev) => {
       const next = { ...prev, ...patch };
-      api.setAppSettings(next).catch((e) => setStatus(`Settings: ${e}`));
+      api.setAppSettings(next).catch((e) => notify(`Configurações: ${e}`, "error"));
       return next;
     });
   }, []);
@@ -416,6 +522,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     busy,
     status,
     notify,
+    toasts,
+    dismissToast,
+    notifications,
+    hasUnreadNotifications,
+    markNotificationsRead,
+    clearNotifications,
+    miniMode,
+    toggleMiniMode,
     refreshDevices,
     selectDevice,
     onVolume,
@@ -430,6 +544,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     runCalibration,
     library,
     playlists,
+    queue,
     playback,
     playTrack,
     togglePause,
@@ -442,6 +557,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     bindings,
     foregroundApp,
     appSettings,
+    settingsReady,
     saveAppSettings,
   };
 

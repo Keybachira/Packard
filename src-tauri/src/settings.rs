@@ -16,6 +16,11 @@ pub struct AppSettings {
     pub library_paths: Vec<String>,
     pub spectrum_bins: u32,
     pub profile_auto_switch: bool,
+    pub onboarded: bool,
+    pub accent: String,
+    pub username: String,
+    /// Local profile photo, stored as a data: URL (no cloud upload involved).
+    pub avatar: String,
 }
 
 impl Default for AppSettings {
@@ -31,6 +36,10 @@ impl Default for AppSettings {
             library_paths: Vec::new(),
             spectrum_bins: 48,
             profile_auto_switch: false,
+            onboarded: false,
+            accent: "#22c55e".into(),
+            username: String::new(),
+            avatar: String::new(),
         }
     }
 }

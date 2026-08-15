@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# remote-app/dist is hand-authored source (no build step for the phone PWA),
+# not a build artifact — keep it tracked despite the blanket `dist` rule above.
+!remote-app/dist
+!remote-app/dist/**
+
 # Rust / Tauri
 src-tauri/target
 src-tauri/gen

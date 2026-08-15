@@ -11,6 +11,7 @@ use std::sync::Mutex;
 /// remaining knobs (balance, stereo width, spatial, crossfeed, noise
 /// reduction) are forwarded to the hardware backend when it is implemented.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
 pub struct AudioLabParams {
     /// 10-band EQ gains in dB (-12..+12).
     pub eq: Vec<f32>,

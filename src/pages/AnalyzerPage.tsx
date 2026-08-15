@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import { useApp } from "../context/AppStore";
 import Panel from "../components/Panel";
 import SpectrumAnalyzer from "../components/SpectrumAnalyzer";
-import { getWaveform } from "../lib/deviceApi";
+import { getAnalyzerStatus, getWaveform } from "../lib/deviceApi";
 
 function WaveformCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -69,19 +68,35 @@ function Meter({ label, value }: { label: string; value: number }) {
 }
 
 export default function AnalyzerPage() {
-  const { playback } = useApp();
   const [peak, setPeak] = useState(0);
   const [rms, setRms] = useState(0);
-  const [lufs, setLufs] = useState(-23);
+  const [lufs, setLufs] = useState(-70);
+  const [sampleRate, setSampleRate] = useState(48000);
+  const [capturing, setCapturing] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    const id = setInterval(() => {
-      const t = Date.now() / 1000;
-      setPeak(0.5 + 0.4 * Math.abs(Math.sin(t * 1.3)));
-      setRms(0.3 + 0.2 * Math.abs(Math.sin(t * 0.9)));
-      setLufs(-26 + 5 * Math.abs(Math.sin(t * 0.6)));
-    }, 200);
-    return () => clearInterval(id);
+    let alive = true;
+    const tick = async () => {
+      try {
+        const s = await getAnalyzerStatus();
+        if (!alive) return;
+        setPeak(s.peak);
+        setRms(s.rms);
+        setLufs(s.lufs);
+        setSampleRate(s.sampleRate);
+        setCapturing(s.captureAlive && !s.lastError && s.framesPushed > 0);
+        setError(s.lastError);
+      } catch {
+        /* keep last values */
+      }
+    };
+    tick();
+    const id = setInterval(tick, 200);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
   }, []);
 
   const clipping = peak > 0.95;
@@ -90,9 +105,13 @@ export default function AnalyzerPage() {
     <div className="page">
       <Panel
         title="ANALISADOR EM TEMPO REAL"
-        action={<span className="num" style={{ fontSize: 10.5, color: "var(--accent-2)" }}>FFT 4096 · 48 kHz</span>}
+        action={
+          <span className="num" style={{ fontSize: 10.5, color: "var(--accent-2)" }}>
+            FFT 4096 · {sampleRate.toLocaleString("pt-BR")} Hz
+          </span>
+        }
       >
-        <SpectrumAnalyzer running={playback.playing} />
+        <SpectrumAnalyzer />
       </Panel>
 
       <Panel title="FORMA DE ONDA">
@@ -115,18 +134,26 @@ export default function AnalyzerPage() {
               <div className="box-value num" style={{ fontSize: 18 }}>{clipping ? "⚠" : "OK"}</div>
             </div>
             <div className="box">
-              <div className="box-label">Campo Estéreo</div>
-              <div className="box-value num" style={{ fontSize: 18 }}>{Math.abs(peak - rms) > 0.15 ? "AMPLO" : "CENTRAL"}</div>
+              <div className="box-label">Captura</div>
+              <div className="box-value num" style={{ fontSize: 18, color: capturing ? "var(--accent-2)" : "var(--danger)" }}>
+                {capturing ? "ATIVA" : "SILÊNCIO"}
+              </div>
             </div>
             <div className="box">
               <div className="box-label">Profundidade de Bits</div>
-              <div className="box-value num" style={{ fontSize: 18 }}>24-bit</div>
+              <div className="box-value num" style={{ fontSize: 18 }}>float32</div>
             </div>
             <div className="box">
               <div className="box-label">Taxa de Amostragem</div>
-              <div className="box-value num" style={{ fontSize: 18 }}>48 kHz</div>
+              <div className="box-value num" style={{ fontSize: 18 }}>{(sampleRate / 1000).toFixed(1).replace(".", ",")} kHz</div>
             </div>
           </div>
+          {error && (
+            <div className="box danger" style={{ marginTop: 16 }}>
+              <div className="box-label">Erro de captura</div>
+              <div className="box-value num" style={{ fontSize: 11, lineHeight: 1.5 }}>{error}</div>
+            </div>
+          )}
         </Panel>
       </div>
     </div>

@@ -271,3 +271,296 @@ export function IconMusic(p: IconProps) {
     </svg>
   );
 }
+
+export function IconCheck(p: IconProps) {
+  return (
+    <svg {...base(p)} strokeWidth={2}>
+      <path d="m5 12 5 5 9-10" />
+    </svg>
+  );
+}
+
+export function IconX(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M6 6l12 12M18 6 6 18" />
+    </svg>
+  );
+}
+
+export function IconPlus(p: IconProps) {
+  return (
+    <svg {...base(p)} strokeWidth={2}>
+      <path d="M12 5v14M5 12h14" />
+    </svg>
+  );
+}
+
+export function IconFolder(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z" />
+    </svg>
+  );
+}
+
+/** Faithful inline port of src/assets/folder.svg (FLB folder glyph). */
+export function IconFolderSvg(p: IconProps) {
+  const { size = 18, className, style } = p;
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="383.069 437.98 21.932 17.796"
+      className={className}
+      style={style}
+    >
+      <path
+        d="M 391.069 437.98 L 385.069 437.98 C 383.959 437.98 383.069 438.87 383.069 439.98 L 383.069 451.98 C 383.069 453.077 383.972 453.98 385.069 453.98 L 401.069 453.98 C 402.166 453.98 403.069 453.077 403.069 451.98 L 403.069 441.98 C 403.069 440.87 402.169 439.98 401.069 439.98 L 393.069 439.98 L 391.069 437.98 Z"
+        fill="currentColor"
+        fillOpacity="0.22"
+      />
+      <path
+        d="M 401.015 447.139 L 401.015 445.81 L 398.357 445.81 L 398.357 449.464 C 398.078 449.258 397.74 449.132 397.361 449.132 C 396.92 449.132 396.498 449.307 396.186 449.619 C 395.875 449.93 395.7 450.353 395.7 450.793 C 395.7 451.234 395.875 451.656 396.186 451.968 C 396.498 452.279 396.92 452.454 397.361 452.454 C 397.801 452.454 398.224 452.279 398.535 451.968 C 398.847 451.656 399.022 451.234 399.022 450.793 L 399.022 447.139 L 401.015 447.139 M 398.357 442.488 C 400.12 442.488 401.809 443.188 403.055 444.434 C 404.301 445.68 405.001 447.37 405.001 449.132 C 405.001 450.894 404.301 452.584 403.055 453.83 C 401.809 455.076 400.12 455.776 398.357 455.776 C 396.595 455.776 394.905 455.076 393.659 453.83 C 392.413 452.584 391.713 450.894 391.713 449.132 C 391.713 447.37 392.413 445.68 393.659 444.434 C 394.905 443.188 396.595 442.488 398.357 442.488 Z"
+        fillRule="evenodd"
+        fill="currentColor"
+      />
+    </svg>
+  );
+}
+
+export function IconQueue(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M3 6h13M3 12h9M3 18h13" />
+      <path d="M18 8v10M15 12l3-4 3 4" />
+    </svg>
+  );
+}
+
+export function IconInfo(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 8h.01M12 12v4" />
+    </svg>
+  );
+}
+
+export function IconSort(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M7 4v16M7 4 4 7M7 4l3 3M17 20V4M17 20l-3-3M17 20l3-3" />
+    </svg>
+  );
+}
+
+export function IconClock(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 7v5l3 3" />
+    </svg>
+  );
+}
+
+export function IconGrid(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <rect x="3" y="3" width="7" height="7" rx="1.5" />
+      <rect x="14" y="3" width="7" height="7" rx="1.5" />
+      <rect x="3" y="14" width="7" height="7" rx="1.5" />
+      <rect x="14" y="14" width="7" height="7" rx="1.5" />
+    </svg>
+  );
+}
+
+export function IconUser(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21a8 8 0 0 1 16 0" />
+    </svg>
+  );
+}
+
+export function IconList(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M9 6h12M9 12h12M9 18h12M4 6h.01M4 12h.01M4 18h.01" />
+    </svg>
+  );
+}
+
+export function IconStar(p: IconProps) {
+  return (
+    <svg {...base(p)} fill="currentColor" stroke="none">
+      <path d="m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1L12 2z" />
+    </svg>
+  );
+}
+
+export function IconTrash(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M4 7h16M9 7V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M6 7l1 13a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-13" />
+    </svg>
+  );
+}
+
+export function IconEdit(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+    </svg>
+  );
+}
+
+export function IconBack(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M19 12H5M11 6l-6 6 6 6" />
+    </svg>
+  );
+}
+
+export function IconAlbum(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <circle cx="12" cy="12" r="9" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  );
+}
+
+export function IconLyrics(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M4 5h16M4 10h16M4 15h10M4 20h7" />
+      <path d="M18 15v6M16 18h4" />
+    </svg>
+  );
+}
+
+export function IconPin(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M9 4h6l-1 7 3 3v2H7v-2l3-3-1-7z" />
+      <path d="M12 16v4" />
+    </svg>
+  );
+}
+
+export function IconChevron(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="m6 9 6 6 6-6" />
+    </svg>
+  );
+}
+
+export function IconNote(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M9 18V5l12-2v13" />
+      <circle cx="6" cy="18" r="3" />
+      <circle cx="18" cy="16" r="3" />
+    </svg>
+  );
+}
+
+export function IconCamera(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M4 8h3l1.6-2.2h6.8L17 8h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1Z" />
+      <circle cx="12" cy="13.4" r="3.4" />
+    </svg>
+  );
+}
+
+export function IconExpand(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5" />
+    </svg>
+  );
+}
+
+export function IconMinimize2(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M15 9V4h5M9 9H4V4M15 15v5h5M9 15H4v5" />
+    </svg>
+  );
+}
+
+export function IconWinMinimize(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M5 12h14" />
+    </svg>
+  );
+}
+
+export function IconWinMaximize(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <rect x="5.5" y="5.5" width="13" height="13" rx="1.5" />
+    </svg>
+  );
+}
+
+export function IconWinRestore(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <rect x="7.5" y="4.5" width="12" height="12" rx="1.4" />
+      <path d="M16.5 8.5H6.9A2.4 2.4 0 0 0 4.5 10.9V19.5h9.6a2.4 2.4 0 0 0 2.4-2.4V8.5Z" />
+    </svg>
+  );
+}
+
+export function IconWinClose(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M6 6l12 12M18 6L6 18" />
+    </svg>
+  );
+}
+
+export function IconAvatarFallback(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <circle cx="12" cy="8.5" r="3.5" />
+      <path d="M4.5 19.5c1.6-3.4 4.4-5 7.5-5s5.9 1.6 7.5 5" />
+    </svg>
+  );
+}
+
+export function IconSmartphone(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <rect x="6.5" y="2.5" width="11" height="19" rx="2.2" />
+      <path d="M10.5 18.5h3" />
+    </svg>
+  );
+}
+
+export function IconQrCode(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <rect x="3.5" y="3.5" width="6" height="6" rx="1" />
+      <rect x="14.5" y="3.5" width="6" height="6" rx="1" />
+      <rect x="3.5" y="14.5" width="6" height="6" rx="1" />
+      <path d="M14.5 14.5h3v3h-3zM20.5 14.5v3M17.5 20.5h3" />
+    </svg>
+  );
+}
+
+export function IconRefresh(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M20 11a8 8 0 10-2.1 6.4" />
+      <path d="M20 5v6h-6" />
+    </svg>
+  );
+}

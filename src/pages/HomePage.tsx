@@ -246,14 +246,25 @@ export default function HomePage() {
                   </div>
                   <div className="profile-desc">{activeProfile.category}</div>
                 </div>
-                <img
-                  className="profile-art"
-                  src={`https://picsum.photos/seed/${activeProfile.id}/132`}
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).style.visibility = "hidden";
-                  }}
-                  alt=""
-                />
+                <div className="profile-art-wrap">
+                  <img
+                    className="profile-art-bg"
+                    src={`https://picsum.photos/seed/${activeProfile.id}/132`}
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.visibility = "hidden";
+                    }}
+                    alt=""
+                  />
+                  <img
+                    className="profile-art"
+                    src={`https://picsum.photos/seed/${activeProfile.id}/132`}
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).style.visibility = "hidden";
+                    }}
+                    alt=""
+                  />
+                  <span className="profile-art-glint" />
+                </div>
               </div>
               <div className="feat-grid">
                 <div className="feat">

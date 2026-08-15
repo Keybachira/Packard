@@ -130,6 +130,36 @@ export interface AppSettings {
   libraryPaths: string[];
   spectrumBins: number;
   profileAutoSwitch: boolean;
+  onboarded: boolean;
+  accent: string;
+  username: string;
+  /** Local profile photo as a data: URL. Never uploaded anywhere. */
+  avatar: string;
+}
+
+// --- Notifications -----------------------------------------------------
+
+export type ToastVariant = "info" | "success" | "error";
+
+export interface ToastItem {
+  id: string;
+  message: string;
+  variant: ToastVariant;
+  time: number;
+}
+
+// --- Remote control ----------------------------------------------------
+
+/// Mirrors `RemoteStateView` in `src-tauri/src/remote/hub.rs` (via `lib.rs`).
+export interface RemoteState {
+  ready: boolean;
+  lanIp: string | null;
+  port: number | null;
+  url: string | null;
+  qrSvg: string | null;
+  sessionExpiresIn: number;
+  connectedCount: number;
+  maxRemotes: number;
 }
 
 // --- Constants -------------------------------------------------------------

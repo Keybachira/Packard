@@ -1,0 +1,19 @@
+{
+  "name": "SoundCore Remote",
+  "short_name": "SoundCore",
+  "description": "Controle remoto do SoundCore na mesma rede Wi-Fi.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0d0c",
+  "theme_color": "#0b0d0c",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

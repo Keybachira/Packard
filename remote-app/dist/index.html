@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <!-- The page is served at "/remote" (no trailing slash), so without this
+       every relative asset (styles.css, app.js, manifest…) would resolve
+       against "/" instead of "/remote/" and 404 — this pins the base. -->
+  <base href="/remote/" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#0a0c0b" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="SoundCore" />
+  <title>SoundCore Remote</title>
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="bg-blob bg-blob-a"></div>
+  <div class="bg-blob bg-blob-b"></div>
+
+  <div class="screen">
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-dot" id="connDot"></span>
+        <span class="brand-name">SoundCore</span>
+      </div>
+      <div class="device-name" id="deviceName">—</div>
+    </header>
+
+    <main id="main" class="main">
+      <!-- Connecting / error state -->
+      <section id="statusView" class="status-view">
+        <div class="status-card">
+          <div class="status-spinner" id="statusSpinner"></div>
+          <p class="status-title" id="statusTitle">Conectando…</p>
+          <p class="status-sub" id="statusSub">Aguardando o SoundCore no computador.</p>
+        </div>
+      </section>
+
+      <!-- Player state -->
+      <section id="playerView" class="player-view hidden">
+        <div class="now-playing-card">
+          <div class="art-wrap">
+            <div class="art">
+              <svg viewBox="0 0 24 24" width="42" height="42" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M9 18V5l12-2v13" stroke-linecap="round" stroke-linejoin="round" />
+                <circle cx="6" cy="18" r="3" stroke-linecap="round" stroke-linejoin="round" />
+                <circle cx="18" cy="16" r="3" stroke-linecap="round" stroke-linejoin="round" />
+              </svg>
+            </div>
+          </div>
+
+          <div class="np-body">
+            <p class="track-title" id="trackTitle">Nada tocando</p>
+            <p class="track-artist" id="trackArtist">—</p>
+
+            <div class="progress-row">
+              <span class="time" id="posTime">0:00</span>
+              <div class="progress-track" id="progressTrack">
+                <div class="progress-fill" id="progressFill"></div>
+              </div>
+              <span class="time" id="durTime">0:00</span>
+            </div>
+
+            <div class="transport">
+              <button class="tbtn" id="btnPrev" aria-label="Anterior">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M6 5h2v14H6zM20 6.4v11.2c0 .9-1 1.4-1.7.9L9.6 12.9c-.6-.5-.6-1.3 0-1.8l8.7-6.6c.7-.5 1.7 0 1.7.9z"/></svg>
+              </button>
+              <button class="tbtn tbtn-main" id="btnPlay" aria-label="Play/Pause">
+                <svg id="iconPlay" viewBox="0 0 24 24" width="26" height="26" fill="currentColor"><path d="M8 5.5v13l11-6.5-11-6.5z"/></svg>
+                <svg id="iconPause" viewBox="0 0 24 24" width="26" height="26" fill="currentColor" class="hidden"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>
+              </button>
+              <button class="tbtn" id="btnNext" aria-label="Próxima">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M18 5h-2v14h2zM4 6.4v11.2c0 .9 1 1.4 1.7.9l8.7-6.6c.6-.5.6-1.3 0-1.8L5.7 5.5C5 5 4 5.5 4 6.4z"/></svg>
+              </button>
+            </div>
+
+            <div class="volume-row">
+              <button class="mute-btn" id="btnMute" aria-label="Mudo">
+                <svg id="iconVol" viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M4 9v6h4l5 5V4L8 9H4z"/></svg>
+                <svg id="iconVolMuted" viewBox="0 0 24 24" width="17" height="17" fill="currentColor" class="hidden"><path d="M4 9v6h4l5 5V4L8 9H4zm11.5 3l2.5 2.5 1.4-1.4L16.9 12l2.5-2.5-1.4-1.4L15 10.6l-2.5-2.5-1.4 1.4L13.6 12l-2.5 2.5 1.4 1.4L15 13.4z"/></svg>
+              </button>
+              <input type="range" id="volumeSlider" class="volume-slider" min="0" max="100" step="1" value="50" />
+              <span class="vol-num" id="volNum">50</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <span id="footNote">Controle remoto local · mesma rede Wi-Fi</span>
+    </footer>
+  </div>
+
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

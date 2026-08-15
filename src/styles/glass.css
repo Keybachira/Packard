@@ -1,0 +1,633 @@
+/* ==========================================================================
+   glass.css — premium glassmorphism polish layer
+   Loaded last (after premium.css) so every override wins the cascade.
+
+   Direction: dark near-black charcoal w/ subtle green undertones, frosted
+   translucent panels (backdrop blur + saturate, thin borders, inner depth),
+   refined emerald accents. Green is reserved for active states, sliders,
+   meters, indicators and the play button — never as a blanket surface.
+
+   Builds on tokens from prototype.css / flb.css and the inline
+   --accentColor set by ThemeApplier.
+   ========================================================================== */
+
+/* ------------------------------ glass tokens ------------------------------ */
+
+:root {
+  --glass-blur: 22px;
+  --glass-sat: 165%;
+
+  /* Panel fills (dark) */
+  --glass-fill: rgba(23, 29, 25, 0.55);
+  --glass-fill-2: rgba(29, 37, 32, 0.62);
+  --glass-fill-3: rgba(38, 48, 41, 0.7);
+
+  /* Hairlines + inner depth */
+  --glass-line: rgba(255, 255, 255, 0.09);
+  --glass-line-soft: rgba(255, 255, 255, 0.05);
+  --glass-line-strong: rgba(255, 255, 255, 0.16);
+  --glass-hi: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --glass-lo: inset 0 -1px 0 rgba(0, 0, 0, 0.28);
+  --glass-shadow:
+    0 24px 60px -26px rgba(0, 0, 0, 0.6),
+    var(--glass-hi),
+    var(--glass-lo);
+
+  /* Emerald */
+  --emerald: #22c55e;
+  --emerald-2: #4ade80;
+  --emerald-ink: #d7f8e2;
+  --emerald-glow: 0 8px 24px -8px rgba(34, 197, 94, 0.55);
+  --emerald-tint: rgba(34, 197, 94, 0.16);
+}
+
+html.light {
+  --glass-fill: rgba(255, 255, 255, 0.62);
+  --glass-fill-2: rgba(255, 255, 255, 0.78);
+  --glass-fill-3: rgba(255, 255, 255, 0.92);
+  --glass-line: rgba(20, 30, 20, 0.08);
+  --glass-line-soft: rgba(20, 30, 20, 0.05);
+  --glass-line-strong: rgba(20, 30, 20, 0.15);
+  --glass-hi: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  --glass-lo: inset 0 -1px 0 rgba(20, 30, 20, 0.05);
+  --glass-shadow:
+    0 24px 50px -32px rgba(20, 30, 20, 0.3),
+    var(--glass-hi),
+    var(--glass-lo);
+  --emerald: #16a34a;
+  --emerald-2: #22c55e;
+  --emerald-ink: #0a6e2d;
+  --emerald-glow: 0 8px 22px -10px rgba(22, 163, 74, 0.4);
+  --emerald-tint: rgba(22, 163, 74, 0.12);
+}
+
+/* ------------------------- ambient backdrop glows ------------------------- */
+
+.app-shell {
+  position: relative;
+}
+.app-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(720px 420px at 12% -8%, rgba(34, 197, 94, 0.1), transparent 60%),
+    radial-gradient(560px 380px at 92% 10%, rgba(74, 222, 128, 0.07), transparent 62%),
+    radial-gradient(760px 520px at 52% 118%, rgba(34, 197, 94, 0.09), transparent 62%);
+}
+.app-shell .app {
+  position: relative;
+  z-index: 1;
+}
+
+/* ------------------------- shared frosted surface ------------------------- */
+
+.sidebar,
+.playingPane,
+#tabsArea,
+.side-pane,
+.card,
+.bezel,
+.search,
+.tabs-search,
+.icon-btn,
+.user-chip,
+.mini-player,
+.feat,
+.shortcut,
+.dev-icon,
+.box,
+.chip,
+.analyzer-select,
+.btn-outline,
+.btn-ghost,
+.btn-mute,
+.group-card,
+.mix-card,
+.info-row,
+.track-play,
+.toast-card,
+.notif-panel,
+.context-menu,
+.modal-card {
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+}
+
+/* ------------------------------- sidebar ---------------------------------- */
+
+.sidebar {
+  background: var(--glass-fill-2);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--glass-shadow);
+}
+.brand-bars span {
+  background: linear-gradient(180deg, var(--emerald-2), var(--emerald));
+}
+.nav-item {
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  backdrop-filter: blur(12px) saturate(140%);
+}
+.nav-item:hover {
+  background: var(--glass-fill-3);
+}
+/* Active nav = illuminated glass pill (not solid green) */
+.nav-item.active {
+  background: linear-gradient(160deg, rgba(74, 222, 128, 0.22), rgba(34, 197, 94, 0.12));
+  border-color: rgba(74, 222, 128, 0.35);
+  color: var(--emerald-ink);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 6px 18px -8px rgba(34, 197, 94, 0.45);
+}
+.nav-item.active svg {
+  color: var(--emerald-2);
+}
+
+.mini-player {
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--glass-hi), 0 10px 24px -14px rgba(0, 0, 0, 0.5);
+}
+
+/* ----------------------- topbar / search / chrome ------------------------- */
+
+.search,
+.tabs-search,
+.icon-btn,
+.user-chip {
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--glass-hi);
+}
+.search:focus-within,
+.tabs-search:focus-within {
+  background: var(--glass-fill-2);
+  border-color: rgba(74, 222, 128, 0.3);
+}
+.icon-btn:hover {
+  background: var(--glass-fill-2);
+  border-color: var(--glass-line-strong);
+  color: var(--emerald-2);
+}
+.user-chip:hover {
+  background: var(--glass-fill-2);
+}
+
+.analyzer-select {
+  background: var(--glass-fill-2);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--glass-hi);
+  color: var(--text-dim);
+}
+.analyzer-select:hover {
+  color: var(--emerald-2);
+  border-color: rgba(74, 222, 128, 0.35);
+}
+
+/* -------------------------------- cards ----------------------------------- */
+
+.card {
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--glass-shadow);
+}
+.card:hover {
+  border-color: var(--glass-line-strong);
+  box-shadow:
+    var(--glass-shadow),
+    0 0 0 1px rgba(34, 197, 94, 0.1),
+    0 28px 64px -28px rgba(0, 0, 0, 0.65);
+}
+.bezel {
+  background: var(--glass-fill-2);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--glass-hi);
+}
+
+/* ----------------------- pill tabs / active chips ------------------------- */
+
+.tab,
+.tab-btn,
+.side-pane-tab,
+.tabs-select-btn {
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  backdrop-filter: blur(14px) saturate(150%);
+}
+.tab.active,
+.tab-btn.active,
+.side-pane-tab.active,
+.tabs-select-btn.on {
+  background: linear-gradient(160deg, rgba(74, 222, 128, 0.24), rgba(34, 197, 94, 0.13));
+  border: 1px solid rgba(74, 222, 128, 0.35);
+  color: var(--emerald-ink);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 6px 18px -8px rgba(34, 197, 94, 0.5);
+}
+html.light .tab.active,
+html.light .tab-btn.active,
+html.light .side-pane-tab.active,
+html.light .tabs-select-btn.on {
+  color: var(--emerald-ink);
+}
+
+/* ------------------------------ stat cards -------------------------------- */
+
+.stat-card {
+  background: linear-gradient(
+    160deg,
+    rgba(34, 197, 94, 0.24),
+    rgba(34, 197, 94, 0.1) 55%,
+    var(--glass-fill)
+  );
+  border: 1px solid rgba(74, 222, 128, 0.28);
+  color: var(--emerald-ink);
+  box-shadow:
+    var(--glass-hi),
+    0 14px 30px -16px rgba(0, 0, 0, 0.6),
+    0 8px 20px -10px rgba(34, 197, 94, 0.35);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  backdrop-filter: blur(18px) saturate(150%);
+}
+.stat-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0.13), transparent 45%);
+}
+.stat-card::after {
+  content: "";
+  position: absolute;
+  right: -32px;
+  top: -32px;
+  width: 96px;
+  height: 96px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(74, 222, 128, 0.32), transparent 70%);
+  pointer-events: none;
+}
+.stat-card .stat-ic {
+  color: var(--emerald-2);
+  text-shadow: 0 0 12px rgba(74, 222, 128, 0.5);
+}
+.stat-card:hover {
+  box-shadow:
+    var(--glass-hi),
+    0 18px 36px -14px rgba(0, 0, 0, 0.65),
+    0 10px 26px -10px rgba(34, 197, 94, 0.5);
+}
+html.light .stat-card {
+  background: linear-gradient(
+    160deg,
+    rgba(22, 163, 74, 0.16),
+    rgba(22, 163, 74, 0.07) 55%,
+    rgba(255, 255, 255, 0.6)
+  );
+  border-color: rgba(22, 163, 74, 0.25);
+  color: var(--emerald-ink);
+  box-shadow:
+    0 16px 30px -20px rgba(20, 30, 20, 0.28),
+    var(--glass-hi);
+}
+html.light .stat-card .stat-ic {
+  color: var(--emerald);
+}
+
+/* ------------------------------ volume knob ------------------------------- */
+
+.knob-center {
+  background: rgba(20, 26, 22, 0.55);
+  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  backdrop-filter: blur(12px) saturate(150%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    var(--glass-hi),
+    inset 0 -4px 10px rgba(0, 0, 0, 0.3),
+    0 8px 20px -8px rgba(0, 0, 0, 0.5);
+  color: var(--text);
+}
+.knob-center:hover {
+  color: var(--emerald-2);
+}
+html.light .knob-center {
+  background: rgba(255, 255, 255, 0.6);
+  border-color: rgba(20, 30, 20, 0.12);
+}
+
+/* ------------------------------- analyzer --------------------------------- */
+
+.bars-wrap {
+  border-left: 1px solid var(--glass-line);
+  border-bottom: 1px solid var(--glass-line);
+  border-radius: 0 0 12px 12px;
+  background:
+    repeating-linear-gradient(
+      180deg,
+      var(--glass-line-soft) 0 1px,
+      transparent 1px 42.5px
+    ),
+    radial-gradient(130% 90% at 50% 0%, rgba(34, 197, 94, 0.06), transparent 70%);
+}
+.abar {
+  background: linear-gradient(180deg, var(--emerald-2), var(--emerald));
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.35);
+  opacity: 0.92;
+}
+
+/* ---------------------------------- EQ ------------------------------------ */
+
+.eq-track {
+  width: 3px;
+  background: rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+html.light .eq-track {
+  background: rgba(20, 30, 20, 0.1);
+}
+.eq-fill {
+  background: linear-gradient(180deg, var(--emerald-2), var(--emerald));
+  box-shadow: 0 0 8px rgba(34, 197, 94, 0.4);
+}
+.eq-mid-line {
+  background: var(--glass-line);
+  box-shadow: none;
+}
+.eq-handle {
+  background: rgba(20, 26, 22, 0.7);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  border: 2.5px solid var(--emerald);
+  box-shadow:
+    0 0 0 3px rgba(34, 197, 94, 0.18),
+    0 4px 10px -4px rgba(0, 0, 0, 0.5);
+}
+html.light .eq-handle {
+  background: rgba(255, 255, 255, 0.85);
+  border-color: var(--emerald);
+}
+
+/* ------------------------------ profile art ------------------------------- */
+
+.profile-art-wrap {
+  position: relative;
+  width: 66px;
+  height: 66px;
+  border-radius: 16px;
+  flex-shrink: 0;
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid var(--glass-line);
+  box-shadow:
+    0 12px 26px -12px rgba(0, 0, 0, 0.55),
+    var(--glass-hi);
+}
+.profile-art-bg {
+  position: absolute;
+  z-index: 0;
+  left: -8px;
+  top: -8px;
+  width: calc(100% + 16px);
+  height: calc(100% + 16px);
+  object-fit: cover;
+  filter: blur(14px) saturate(1.5);
+  transform: scale(1.1);
+  opacity: 0.9;
+}
+.profile-art {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: inherit;
+  border: none;
+}
+.profile-art-glint {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  pointer-events: none;
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.03) 40%, transparent 62%);
+}
+
+/* ------------------------------ calibration ------------------------------- */
+
+.calib-ring {
+  background:
+    repeating-radial-gradient(circle, transparent 0 8px, var(--glass-line-soft) 9px 10px),
+    radial-gradient(circle at 50% 34%, rgba(34, 197, 94, 0.1), transparent 72%);
+  border: 1px solid var(--glass-line);
+  box-shadow:
+    var(--glass-hi),
+    0 16px 34px -20px rgba(0, 0, 0, 0.55);
+}
+.calib-ring::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  pointer-events: none;
+  background: conic-gradient(
+    from 0deg,
+    rgba(74, 222, 128, 0) 0deg,
+    rgba(74, 222, 128, 0.2) 70deg,
+    rgba(74, 222, 128, 0) 150deg
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+  animation: calib-sweep 3.6s linear infinite;
+}
+@keyframes calib-sweep {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.calib-mic {
+  background: rgba(34, 197, 94, 0.14);
+  border: 1px solid rgba(74, 222, 128, 0.35);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0 26px rgba(34, 197, 94, 0.25);
+}
+
+/* --------------------------- recognition / tiles -------------------------- */
+
+.recog-ring {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 10px 26px -14px rgba(34, 197, 94, 0.45);
+}
+.feat,
+.shortcut,
+.dev-icon,
+.box,
+.chip,
+.info-row,
+.track-play {
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--glass-hi);
+}
+.feat .val {
+  color: var(--emerald-2);
+}
+.shortcut .ic {
+  color: var(--emerald-2);
+}
+.shortcut:hover {
+  border-color: rgba(74, 222, 128, 0.4);
+  box-shadow:
+    var(--glass-hi),
+    0 10px 22px -12px rgba(34, 197, 94, 0.4);
+}
+.dev-icon.on {
+  background: linear-gradient(160deg, rgba(74, 222, 128, 0.24), rgba(34, 197, 94, 0.12));
+  border-color: rgba(74, 222, 128, 0.4);
+  color: var(--emerald-2);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 4px 12px -6px rgba(34, 197, 94, 0.5);
+}
+
+.group-card,
+.mix-card {
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--glass-hi);
+}
+.group-card:hover,
+.mix-card:hover {
+  background: var(--glass-fill-2);
+  border-color: var(--glass-line-strong);
+  box-shadow: var(--glass-hi), 0 18px 36px -18px rgba(0, 0, 0, 0.55);
+}
+
+/* -------------------------------- buttons --------------------------------- */
+
+.btn-solid,
+.btn-cta {
+  background: linear-gradient(160deg, var(--emerald-2), var(--emerald));
+  box-shadow:
+    0 10px 24px -8px rgba(34, 197, 94, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  color: #06210f;
+}
+.btn-outline,
+.btn-ghost {
+  background: var(--glass-fill-2);
+  border: 1px solid var(--glass-line);
+  color: var(--text-dim);
+}
+.btn-outline:hover {
+  border-color: rgba(74, 222, 128, 0.45);
+  color: var(--emerald-2);
+  background: rgba(34, 197, 94, 0.1);
+}
+.btn-ghost:hover {
+  color: var(--text);
+  border-color: var(--glass-line-strong);
+}
+.btn-mute {
+  background: var(--glass-fill-2);
+  border: 1px solid var(--glass-line);
+  color: var(--text-dim);
+}
+.btn-mute:hover {
+  color: var(--emerald-2);
+  border-color: rgba(74, 222, 128, 0.4);
+  background: rgba(34, 197, 94, 0.1);
+}
+
+/* ------------------------------ player dock ------------------------------- */
+
+.playingPane {
+  background: var(--glass-fill-2);
+  border: 1px solid var(--glass-line);
+  box-shadow:
+    0 -16px 44px -24px rgba(0, 0, 0, 0.7),
+    0 24px 60px -32px rgba(0, 0, 0, 0.6),
+    var(--glass-hi),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.02);
+}
+.playingPane .iconBtn {
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-line);
+  box-shadow: var(--glass-hi);
+}
+.playingPane .iconBtn:hover {
+  border-radius: 50%;
+  background: linear-gradient(200deg, transparent, rgba(34, 197, 94, 0.25));
+  border-color: rgba(74, 222, 128, 0.35);
+  color: var(--emerald-2);
+}
+.playingPane .iconBtn.activeBtn {
+  background: linear-gradient(160deg, rgba(74, 222, 128, 0.28), rgba(34, 197, 94, 0.16));
+  border-color: rgba(74, 222, 128, 0.4);
+  color: var(--emerald-ink);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 4px 14px -6px rgba(34, 197, 94, 0.5);
+}
+html.light .playingPane .iconBtn.activeBtn {
+  color: var(--emerald-ink);
+}
+
+/* Focal play button */
+.playingPane #toggle_play {
+  background: linear-gradient(160deg, var(--emerald-2), var(--emerald));
+  box-shadow:
+    0 8px 22px -8px rgba(34, 197, 94, 0.6),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  color: #06210f;
+}
+html.light .playingPane #toggle_play {
+  color: #fff;
+}
+
+/* Scrubber + volume rails */
+.playingPane .seekBar,
+.playingPane .VolumeRocker {
+  background: rgba(255, 255, 255, 0.1);
+  box-shadow:
+    inset 0 1px 0 rgba(0, 0, 0, 0.3),
+    0 1px 0 rgba(255, 255, 255, 0.06);
+}
+html.light .playingPane .seekBar,
+html.light .playingPane .VolumeRocker {
+  background: rgba(20, 30, 20, 0.1);
+}
+.playingPane .seekBar .seekProgress,
+.playingPane .base_slider_progress {
+  background: linear-gradient(90deg, var(--emerald), var(--emerald-2));
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.4);
+}
+html.light .playingPane .seekBar .seekProgress,
+html.light .playingPane .base_slider_progress {
+  background: linear-gradient(90deg, var(--emerald), var(--emerald-2));
+}
+
+/* Album art tile in the dock */
+.playingPane .album_art {
+  border: 1px solid var(--glass-line);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 10px 24px -12px rgba(0, 0, 0, 0.55);
+}
+
+/* --------------------------- overlay surfaces ----------------------------- */
+
+.context-menu,
+.modal-card {
+  background: var(--glass-fill-3);
+  border: 1px solid var(--glass-line);
+  box-shadow: 0 22px 50px -14px rgba(0, 0, 0, 0.55), var(--glass-hi);
+}
+.toast-card,
+.notif-panel {
+  background: color-mix(in srgb, var(--glass-fill-2) 88%, transparent);
+  border-color: var(--glass-line);
+}

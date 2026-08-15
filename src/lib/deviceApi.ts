@@ -9,6 +9,7 @@ import type {
   PlaybackState,
   Playlist,
   Profile,
+  RemoteState,
   RoomProfile,
   SubwooferState,
   Track,
@@ -135,6 +136,21 @@ export async function getWaveform(): Promise<number[]> {
   return invoke<number[]>("get_waveform");
 }
 
+export interface AnalyzerStatus {
+  captureAlive: boolean;
+  sampleRate: number;
+  buffered: number;
+  framesPushed: number;
+  peak: number;
+  rms: number;
+  lufs: number;
+  lastError: string | null;
+}
+
+export async function getAnalyzerStatus(): Promise<AnalyzerStatus> {
+  return invoke<AnalyzerStatus>("get_analyzer_status");
+}
+
 // --- Settings --------------------------------------------------------------
 
 export async function getAppSettings(): Promise<AppSettings> {
@@ -143,4 +159,46 @@ export async function getAppSettings(): Promise<AppSettings> {
 
 export async function setAppSettings(settings: AppSettings): Promise<void> {
   await invoke("set_settings", { settings });
+}
+
+// --- Window mode -------------------------------------------------------
+
+export async function enterMiniMode(): Promise<void> {
+  await invoke("enter_mini_mode");
+}
+
+export async function exitMiniMode(): Promise<void> {
+  await invoke("exit_mini_mode");
+}
+
+// --- Window chrome -------------------------------------------------------
+
+export async function windowMinimize(): Promise<void> {
+  await invoke("window_minimize");
+}
+
+export async function windowToggleMaximize(): Promise<boolean> {
+  return invoke<boolean>("window_toggle_maximize");
+}
+
+export async function windowIsMaximized(): Promise<boolean> {
+  return invoke<boolean>("window_is_maximized");
+}
+
+export async function windowClose(): Promise<void> {
+  await invoke("window_close");
+}
+
+// --- Remote control ----------------------------------------------------
+
+export async function getRemoteState(): Promise<RemoteState> {
+  return invoke<RemoteState>("get_remote_state");
+}
+
+export async function regenerateRemoteSession(): Promise<RemoteState> {
+  return invoke<RemoteState>("regenerate_remote_session");
+}
+
+export async function disconnectAllRemotes(): Promise<RemoteState> {
+  return invoke<RemoteState>("disconnect_all_remotes");
 }

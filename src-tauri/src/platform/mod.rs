@@ -2,3 +2,5 @@
 pub mod foreground;
 /// Windows-native audio integration (WASAPI + audio endpoint APIs).
 pub mod wasapi;
+/// System-wide audio capture (WASAPI loopback) for the realtime analyzer.
+pub mod loopback;
