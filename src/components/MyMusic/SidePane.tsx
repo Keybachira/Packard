@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Track } from "../../types/audio";
 import { formatTime } from "../../lib/format";
 import { gradientFor } from "./data";
@@ -19,9 +19,37 @@ interface Props {
   playing: boolean;
   onPlay: (id: string) => void;
   onTogglePause: () => void;
+  onReorder: (from: number, to: number) => void;
+  onRemove: (id: string) => void;
+  getArt: (id: string) => Promise<string | null>;
 }
 
-function InfoTab({ current }: { current: Track | null }) {
+function useArt(trackId: string | null, getArt: (id: string) => Promise<string | null>) {
+  const [art, setArt] = useState<string | null>(null);
+  useEffect(() => {
+    let alive = true;
+    setArt(null);
+    if (!trackId) return;
+    getArt(trackId)
+      .then((a) => {
+        if (alive) setArt(a);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [trackId, getArt]);
+  return art;
+}
+
+function InfoTab({
+  current,
+  getArt,
+}: {
+  current: Track | null;
+  getArt: (id: string) => Promise<string | null>;
+}) {
+  const art = useArt(current?.id ?? null, getArt);
   if (!current) {
     return (
       <div className="lyrics-empty">
@@ -34,9 +62,17 @@ function InfoTab({ current }: { current: Track | null }) {
     <div>
       <div
         className="info-current-art"
-        style={{ background: gradientFor(`${current.title}${current.artist}`) }}
+        style={
+          art
+            ? undefined
+            : { background: gradientFor(`${current.title}${current.artist}`) }
+        }
       >
-        <IconNote size={56} />
+        {art ? (
+          <img src={art} alt={current.title} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+        ) : (
+          <IconNote size={56} />
+        )}
       </div>
       <div className="info-current-title">{current.title}</div>
       <div className="info-current-sub">{current.artist}</div>
@@ -66,36 +102,35 @@ function QueueTab({
   playing,
   onPlay,
   onTogglePause,
+  onReorder,
+  onRemove,
 }: {
   queue: Track[];
   current: Track | null;
   playing: boolean;
   onPlay: (id: string) => void;
   onTogglePause: () => void;
+  onReorder: (from: number, to: number) => void;
+  onRemove: (id: string) => void;
 }) {
-  const [order, setOrder] = useState<Track[] | null>(null);
   const [dragId, setDragId] = useState<string | null>(null);
-  const display = order ?? queue;
 
   const handleDrop = (targetId: string) => {
     if (!dragId || dragId === targetId) {
       setDragId(null);
       return;
     }
-    const from = display.findIndex((t) => t.id === dragId);
-    const to = display.findIndex((t) => t.id === targetId);
+    const from = queue.findIndex((t) => t.id === dragId);
+    const to = queue.findIndex((t) => t.id === targetId);
     if (from < 0 || to < 0) {
       setDragId(null);
       return;
     }
-    const next = [...display];
-    const [moved] = next.splice(from, 1);
-    next.splice(to, 0, moved);
-    setOrder(next);
     setDragId(null);
+    onReorder(from, to);
   };
 
-  if (display.length === 0) {
+  if (queue.length === 0) {
     return (
       <div className="lyrics-empty">
         <IconQueue size={42} />
@@ -108,13 +143,9 @@ function QueueTab({
     <div>
       <div className="queue-head">
         <span className="q-title">Fila de reprodução</span>
-        {order && (
-          <button className="q-clear" onClick={() => setOrder(null)}>
-            Resetar
-          </button>
-        )}
+        <span className="q-count">{queue.length} faixa(s)</span>
       </div>
-      {display.map((t, i) => {
+      {queue.map((t, i) => {
         const isCurrent = current?.id === t.id;
         return (
           <div
@@ -139,10 +170,7 @@ function QueueTab({
               title="Remover da fila"
               onClick={(e) => {
                 e.stopPropagation();
-                setOrder((prev) => {
-                  const base = prev ?? queue;
-                  return base.filter((x) => x.id !== t.id);
-                });
+                onRemove(t.id);
               }}
             >
               <IconTrash size={13} />
@@ -184,6 +212,9 @@ export default function SidePane({
   playing,
   onPlay,
   onTogglePause,
+  onReorder,
+  onRemove,
+  getArt,
 }: Props) {
   const [tab, setTab] = useState<PaneTab>("queue");
   const currentTrack = useMemo(
@@ -217,7 +248,7 @@ export default function SidePane({
         </button>
       </div>
       <div className="side-pane-body">
-        {tab === "info" && <InfoTab current={currentTrack} />}
+        {tab === "info" && <InfoTab current={currentTrack} getArt={getArt} />}
         {tab === "queue" && (
           <QueueTab
             queue={queue}
@@ -225,6 +256,8 @@ export default function SidePane({
             playing={playing}
             onPlay={onPlay}
             onTogglePause={onTogglePause}
+            onReorder={onReorder}
+            onRemove={onRemove}
           />
         )}
         {tab === "lyrics" && <LyricsTab current={currentTrack} />}

@@ -2,30 +2,44 @@ import type { Playlist, Track } from "../../types/audio";
 import { IconList, IconX } from "../icons";
 
 interface Props {
-  track: Track;
+  tracks: Track[];
   playlists: Playlist[];
   library: Track[];
   onAdd: (playlistId: string) => void;
+  onCreate: (name: string) => void;
   onClose: () => void;
 }
 
 export default function PlaylistPicker({
-  track,
+  tracks,
   playlists,
   library,
   onAdd,
+  onCreate,
   onClose,
 }: Props) {
   const countIn = (pl: Playlist) =>
     pl.trackIds.filter((id) => library.some((t) => t.id === id)).length;
+  const summary =
+    tracks.length === 1
+      ? `${tracks[0].title} - ${tracks[0].artist}`
+      : `${tracks.length} faixas selecionadas`;
+
+  const create = () => {
+    const name = window.prompt("Nome da playlist");
+    if (name?.trim()) onCreate(name.trim());
+  };
 
   return (
-    <div className="modal-overlay" onMouseDown={(e) => {
-      if (e.target === e.currentTarget) onClose();
-    }}>
+    <div
+      className="modal-overlay"
+      onMouseDown={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
       <div className="modal-card">
         <div className="modal-head">
-          <h3>Adicionar à playlist</h3>
+          <h3>Adicionar a playlist</h3>
           <button className="modal-close" onClick={onClose}>
             <IconX size={16} />
           </button>
@@ -39,9 +53,19 @@ export default function PlaylistPicker({
             textOverflow: "ellipsis",
           }}
         >
-          {track.title} — {track.artist}
+          {summary}
         </div>
         <div className="modal-list">
+          <button className="modal-pl" onClick={create}>
+            <span className="pl-art">
+              <IconList size={16} />
+            </span>
+            <span className="pl-meta">
+              <span className="pl-name">Nova playlist</span>
+              <br />
+              <span className="pl-count">Criar e adicionar</span>
+            </span>
+          </button>
           {playlists.map((pl) => (
             <button key={pl.id} className="modal-pl" onClick={() => onAdd(pl.id)}>
               <span className="pl-art">
@@ -54,18 +78,6 @@ export default function PlaylistPicker({
               </span>
             </button>
           ))}
-          {playlists.length === 0 && (
-            <div
-              style={{
-                padding: "20px 10px",
-                textAlign: "center",
-                color: "var(--text-faint)",
-                fontSize: 13,
-              }}
-            >
-              Nenhuma playlist disponível.
-            </div>
-          )}
         </div>
       </div>
     </div>

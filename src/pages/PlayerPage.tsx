@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useApp } from "../context/AppStore";
 import type { Track } from "../types/audio";
 import TrackCard from "../components/MyMusic/TrackCard";
@@ -80,11 +80,24 @@ export default function PlayerPage() {
     playlists,
     queue,
     playback,
+    history,
     playTrack,
+    playCollection,
+    enqueue,
+    enqueueNext,
     togglePause,
     favorite,
     notify,
     addLibraryFolder,
+    reorderQueue,
+    removeFromQueue,
+    getArt,
+    createPlaylist: createPlaylistApi,
+    renamePlaylist: renamePlaylistApi,
+    deletePlaylist: deletePlaylistApi,
+    addToPlaylist: addToPlaylistApi,
+    removeFromPlaylist: removeFromPlaylistApi,
+    clearHistory,
   } = useApp();
 
   const [tab, setTab] = useState<MusicTab>("home");
@@ -93,22 +106,13 @@ export default function PlayerPage() {
   const [multiSelect, setMultiSelect] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [ctx, setCtx] = useState<CtxState | null>(null);
-  const [pickerTrack, setPickerTrack] = useState<Track | null>(null);
+  const [pickerTracks, setPickerTracks] = useState<Track[]>([]);
   const [drill, setDrill] = useState<Drill>(null);
-  const [recents, setRecents] = useState<Track[]>([]);
 
   const current = useMemo(
     () => library.find((t) => t.id === playback.trackId) ?? null,
     [library, playback.trackId],
   );
-
-  // Build a session-local "recently played" list for the Recents tab.
-  useEffect(() => {
-    if (!playback.trackId) return;
-    const t = library.find((x) => x.id === playback.trackId);
-    if (!t) return;
-    setRecents((prev) => [t, ...prev.filter((x) => x.id !== t.id)].slice(0, 60));
-  }, [playback.trackId, library]);
 
   const artists = useMemo(() => groupArtists(library), [library]);
   const albums = useMemo(() => groupAlbums(library), [library]);
@@ -128,9 +132,9 @@ export default function PlayerPage() {
   );
 
   const filteredRecents = useMemo(
-    () => sortTracks(recents.filter(matches), sort),
+    () => sortTracks(history.filter(matches), sort),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [recents, q, sort],
+    [history, q, sort],
   );
 
   const filteredArtists = useMemo(
@@ -199,7 +203,7 @@ export default function PlayerPage() {
   };
 
   const playMany = (ids: string[]) => {
-    if (ids.length) playTrack(ids[0]);
+    if (ids.length) playCollection(ids[0], ids);
   };
 
   const onOpenCtx = (e: React.MouseEvent, track: Track) => {
@@ -207,14 +211,49 @@ export default function PlayerPage() {
     setCtx({ x: e.clientX, y: e.clientY, track });
   };
 
-  const addToPlaylist = (playlistId: string) => {
-    const pl = playlists.find((p) => p.id === playlistId);
-    notify(pl ? `Adicionado a "${pl.name}"` : "Playlist não encontrada");
-    setPickerTrack(null);
+  const openPicker = (tracks: Track[]) => {
+    if (tracks.length) setPickerTracks(tracks);
   };
 
-  const removeFromPlaylist = () => {
-    notify("Removido da playlist");
+  const addPickedToPlaylist = async (playlistId: string) => {
+    const ids = pickerTracks.map((t) => t.id);
+    if (!ids.length) return;
+    await addToPlaylistApi(playlistId, ids);
+    const pl = playlists.find((p) => p.id === playlistId);
+    notify(pl ? `Adicionado a "${pl.name}"` : "Adicionado a playlist", "success");
+    setPickerTracks([]);
+  };
+
+  const createPlaylistFromPicker = async (name: string) => {
+    const pl = await createPlaylistApi(name);
+    if (!pl) return;
+    const ids = pickerTracks.map((t) => t.id);
+    if (ids.length) await addToPlaylistApi(pl.id, ids);
+    setPickerTracks([]);
+  };
+
+  const removeFromCurrentPlaylist = async (trackId: string) => {
+    if (drill?.type !== "playlist") return;
+    await removeFromPlaylistApi(drill.id, trackId);
+    notify("Removido da playlist", "success");
+  };
+
+  const createPlaylist = async () => {
+    const name = window.prompt("Nome da playlist");
+    if (name?.trim()) await createPlaylistApi(name.trim());
+  };
+
+  const renameCurrentPlaylist = async () => {
+    if (drill?.type !== "playlist") return;
+    const name = window.prompt("Novo nome da playlist", drillName);
+    if (name?.trim()) await renamePlaylistApi(drill.id, name.trim());
+  };
+
+  const deleteCurrentPlaylist = async () => {
+    if (drill?.type !== "playlist") return;
+    if (!window.confirm(`Remover a playlist "${drillName}"?`)) return;
+    await deletePlaylistApi(drill.id);
+    setDrill(null);
   };
 
   const isSelected = (id: string) => selected.has(id);
@@ -337,6 +376,14 @@ export default function PlayerPage() {
           );
         })}
       </div>
+      {history.length > 0 && (
+        <div className="mm-section-title">
+          <span>Recentes</span>
+          <button className="mm-more" onClick={clearHistory}>
+            Limpar historico
+          </button>
+        </div>
+      )}
 
       <div className="mm-section-title">
         <span>Mixes para você</span>
@@ -390,22 +437,31 @@ export default function PlayerPage() {
         )
       : renderTrackList(filteredRecents);
 
-  const renderPlaylists = () =>
-    renderGrid(
-      filteredPlaylists.map((p) => ({
-        id: p.id,
-        name: p.name,
-        subtitle: `${p.trackIds.length} faixas`,
-        icon: <IconList size={30} />,
-        gradient: gradientFor(p.name),
-      })),
-      (p) => setDrill({ type: "playlist", id: p.id }),
-      (p) => {
-        const ids = resolvePlaylist(playlists, library, p.id);
-        playMany(ids.map((t) => t.id));
-      },
-      q ? `Nada encontrado para "${search}".` : "Nenhuma playlist criada ainda.",
-    );
+  const renderPlaylists = () => (
+    <div className="home-tab">
+      <div className="mm-section-title">
+        <span>Playlists</span>
+        <button className="mm-more" onClick={createPlaylist}>
+          Nova playlist
+        </button>
+      </div>
+      {renderGrid(
+        filteredPlaylists.map((p) => ({
+          id: p.id,
+          name: p.name,
+          subtitle: `${p.trackIds.length} faixas`,
+          icon: <IconList size={30} />,
+          gradient: gradientFor(p.name),
+        })),
+        (p) => setDrill({ type: "playlist", id: p.id }),
+        (p) => {
+          const ids = resolvePlaylist(playlists, library, p.id);
+          playMany(ids.map((t) => t.id));
+        },
+        q ? `Nada encontrado para "${search}".` : "Nenhuma playlist criada ainda.",
+      )}
+    </div>
+  );
 
   const renderArtists = () =>
     renderGrid(
@@ -504,6 +560,16 @@ export default function PlayerPage() {
               <IconPlay size={14} />
               Reproduzir
             </button>
+            {drill.type === "playlist" && (
+              <>
+                <button className="ms-action" onClick={renameCurrentPlaylist}>
+                  Renomear
+                </button>
+                <button className="ms-action" onClick={deleteCurrentPlaylist}>
+                  Excluir
+                </button>
+              </>
+            )}
           </div>
         </div>
         <div className="tabs-content" style={{ height: "auto", flex: 1 }}>
@@ -582,10 +648,27 @@ export default function PlayerPage() {
             </button>
             <button
               className="ms-action"
-              onClick={() => setPickerTrack(library.find((t) => selected.has(t.id)) ?? null)}
+              onClick={() => openPicker(library.filter((t) => selected.has(t.id)))}
+              disabled={selected.size === 0}
             >
               <IconPlus size={13} />
               Playlist
+            </button>
+            <button
+              className="ms-action"
+              onClick={() => enqueue([...selected])}
+              disabled={selected.size === 0}
+            >
+              <IconList size={13} />
+              Fila
+            </button>
+            <button
+              className="ms-action"
+              onClick={() => enqueueNext([...selected])}
+              disabled={selected.size === 0}
+            >
+              <IconClock size={13} />
+              Tocar depois
             </button>
             <button className="ms-action" onClick={() => setSelected(new Set())}>
               <IconTrash size={13} />
@@ -608,6 +691,9 @@ export default function PlayerPage() {
         playing={playback.playing}
         onPlay={playTrack}
         onTogglePause={togglePause}
+        onReorder={reorderQueue}
+        onRemove={removeFromQueue}
+        getArt={getArt}
       />
 
       {ctx && (
@@ -622,7 +708,7 @@ export default function PlayerPage() {
             setCtx(null);
           }}
           onAddToPlaylist={() => {
-            setPickerTrack(ctx.track);
+            openPicker([ctx.track]);
             setCtx(null);
           }}
           onFavorite={() => {
@@ -630,20 +716,21 @@ export default function PlayerPage() {
             setCtx(null);
           }}
           onRemoveFromPlaylist={() => {
-            removeFromPlaylist();
+            removeFromCurrentPlaylist(ctx.track.id);
             setCtx(null);
           }}
           onClose={() => setCtx(null)}
         />
       )}
 
-      {pickerTrack && (
+      {pickerTracks.length > 0 && (
         <PlaylistPicker
-          track={pickerTrack}
+          tracks={pickerTracks}
           playlists={playlists}
           library={library}
-          onAdd={addToPlaylist}
-          onClose={() => setPickerTrack(null)}
+          onAdd={addPickedToPlaylist}
+          onCreate={createPlaylistFromPicker}
+          onClose={() => setPickerTracks([])}
         />
       )}
     </div>

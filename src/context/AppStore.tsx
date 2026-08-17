@@ -108,11 +108,27 @@ interface AppStore {
   playlists: Playlist[];
   queue: Track[];
   playback: PlaybackState;
+  history: Track[];
   playTrack: (id: string) => Promise<void>;
+  playCollection: (trackId: string, ids: string[]) => Promise<void>;
+  enqueue: (ids: string[]) => Promise<void>;
+  enqueueNext: (ids: string[]) => Promise<void>;
+  removeFromQueue: (trackId: string) => Promise<void>;
+  reorderQueue: (from: number, to: number) => Promise<void>;
+  setShuffle: (shuffle: boolean) => Promise<void>;
+  setRepeat: (repeat: boolean) => Promise<void>;
+  seek: (positionSecs: number) => Promise<void>;
   togglePause: () => Promise<void>;
   next: () => Promise<void>;
   previous: () => Promise<void>;
   favorite: (id: string) => Promise<void>;
+  createPlaylist: (name: string) => Promise<Playlist | null>;
+  renamePlaylist: (id: string, name: string) => Promise<void>;
+  deletePlaylist: (id: string) => Promise<void>;
+  addToPlaylist: (id: string, trackIds: string[]) => Promise<void>;
+  removeFromPlaylist: (id: string, trackId: string) => Promise<void>;
+  clearHistory: () => Promise<void>;
+  getArt: (trackId: string) => Promise<string | null>;
   scanning: boolean;
   addLibraryFolder: () => Promise<void>;
 
@@ -153,6 +169,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [library, setLibrary] = useState<Track[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
   const [queue, setQueue] = useState<Track[]>([]);
+  const [history, setHistory] = useState<Track[]>([]);
+  const artCacheRef = useRef<Record<string, string | null>>({});
   const [scanning, setScanning] = useState(false);
   const [playback, setPlayback] = useState<PlaybackState>({
     playing: false,
@@ -307,6 +325,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
     poll();
     const id = setInterval(poll, 800);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
+
+  // Recently played list refreshes on a slower cadence (only changes when a
+  // new track starts).
+  useEffect(() => {
+    let cancelled = false;
+    const poll = () => {
+      api
+        .getHistory()
+        .then((h) => {
+          if (!cancelled) setHistory(h);
+        })
+        .catch(() => {});
+    };
+    poll();
+    const id = setInterval(poll, 3000);
     return () => {
       cancelled = true;
       clearInterval(id);
@@ -477,6 +515,213 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const playCollection = useCallback(async (trackId: string, ids: string[]) => {
+    try {
+      setPlayback(await api.playerPlayCollection(trackId, ids));
+    } catch (e) {
+      notify(`Falha ao reproduzir: ${e}`, "error");
+    }
+  }, []);
+
+  const enqueue = useCallback(async (ids: string[]) => {
+    try {
+      setQueue(await api.enqueueIds(ids));
+    } catch (e) {
+      notify(`Falha ao adicionar à fila: ${e}`, "error");
+    }
+  }, []);
+
+  const enqueueNext = useCallback(async (ids: string[]) => {
+    try {
+      setQueue(await api.enqueueNextIds(ids));
+    } catch (e) {
+      notify(`Falha ao adicionar à fila: ${e}`, "error");
+    }
+  }, []);
+
+  const removeFromQueue = useCallback(async (trackId: string) => {
+    try {
+      setQueue(await api.removeFromQueue(trackId));
+    } catch (e) {
+      notify(`Falha ao remover da fila: ${e}`, "error");
+    }
+  }, []);
+
+  const reorderQueue = useCallback(async (from: number, to: number) => {
+    try {
+      setQueue(await api.reorderQueue(from, to));
+    } catch (e) {
+      notify(`Falha ao reordenar a fila: ${e}`, "error");
+    }
+  }, []);
+
+  const setShuffle = useCallback(async (shuffle: boolean) => {
+    try {
+      setPlayback(await api.playerSetShuffle(shuffle));
+    } catch (e) {
+      notify(`Falha ao alternar shuffle: ${e}`, "error");
+    }
+  }, []);
+
+  const setRepeat = useCallback(async (repeat: boolean) => {
+    try {
+      setPlayback(await api.playerSetRepeat(repeat));
+    } catch (e) {
+      notify(`Falha ao alternar repeat: ${e}`, "error");
+    }
+  }, []);
+
+  const seek = useCallback(async (positionSecs: number) => {
+    try {
+      setPlayback(await api.playerSeek(positionSecs));
+    } catch (e) {
+      notify(`Falha ao buscar: ${e}`, "error");
+    }
+  }, []);
+
+  const createPlaylist = useCallback(async (name: string) => {
+    try {
+      const pl = await api.createPlaylist(name);
+      setPlaylists((prev) => [...prev, pl]);
+      notify(`Playlist "${pl.name}" criada`, "success");
+      return pl;
+    } catch (e) {
+      notify(`Falha ao criar playlist: ${e}`, "error");
+      return null;
+    }
+  }, [notify]);
+
+  const renamePlaylist = useCallback(
+    async (id: string, name: string) => {
+      try {
+        const pl = await api.renamePlaylist(id, name);
+        setPlaylists((prev) => prev.map((p) => (p.id === id ? pl : p)));
+      } catch (e) {
+        notify(`Falha ao renomear playlist: ${e}`, "error");
+      }
+    },
+    [notify],
+  );
+
+  const deletePlaylist = useCallback(
+    async (id: string) => {
+      try {
+        await api.deletePlaylist(id);
+        setPlaylists((prev) => prev.filter((p) => p.id !== id));
+        notify("Playlist removida", "success");
+      } catch (e) {
+        notify(`Falha ao remover playlist: ${e}`, "error");
+      }
+    },
+    [notify],
+  );
+
+  const addToPlaylist = useCallback(
+    async (id: string, trackIds: string[]) => {
+      try {
+        const pl = await api.addToPlaylist(id, trackIds);
+        setPlaylists((prev) => prev.map((p) => (p.id === id ? pl : p)));
+      } catch (e) {
+        notify(`Falha ao adicionar à playlist: ${e}`, "error");
+      }
+    },
+    [notify],
+  );
+
+  const removeFromPlaylist = useCallback(
+    async (id: string, trackId: string) => {
+      try {
+        const pl = await api.removeFromPlaylist(id, trackId);
+        setPlaylists((prev) => prev.map((p) => (p.id === id ? pl : p)));
+      } catch (e) {
+        notify(`Falha ao remover da playlist: ${e}`, "error");
+      }
+    },
+    [notify],
+  );
+
+  const clearHistory = useCallback(
+    async () => {
+      try {
+        await api.clearHistory();
+        setHistory([]);
+        notify("Histórico limpo", "success");
+      } catch (e) {
+        notify(`Falha ao limpar histórico: ${e}`, "error");
+      }
+    },
+    [notify],
+  );
+
+  const getArt = useCallback(async (trackId: string) => {
+    const cached = artCacheRef.current[trackId];
+    if (cached !== undefined) return cached;
+    const art = await api.getTrackArt(trackId).catch(() => null);
+    artCacheRef.current[trackId] = art;
+    return art;
+  }, []);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = document.activeElement;
+      const isTyping =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement ||
+        (target instanceof HTMLElement && target.isContentEditable);
+      if (isTyping || e.repeat) return;
+
+      if (e.code === "Space") {
+        e.preventDefault();
+        togglePause();
+      } else if (e.code === "ArrowRight" && e.ctrlKey) {
+        e.preventDefault();
+        next();
+      } else if (e.code === "ArrowLeft" && e.ctrlKey) {
+        e.preventDefault();
+        previous();
+      } else if (e.code === "KeyS") {
+        e.preventDefault();
+        setShuffle(!playback.shuffle);
+      } else if (e.code === "KeyR") {
+        e.preventDefault();
+        setRepeat(!playback.repeat);
+      }
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [next, playback.repeat, playback.shuffle, previous, setRepeat, setShuffle, togglePause]);
+
+  useEffect(() => {
+    if (!("mediaSession" in navigator)) return;
+    const current = library.find((t) => t.id === playback.trackId) ?? null;
+    if (!current) return;
+
+    let cancelled = false;
+    getArt(current.id).then((art) => {
+      if (cancelled) return;
+      navigator.mediaSession.metadata = new MediaMetadata({
+        title: current.title,
+        artist: current.artist,
+        album: current.album,
+        artwork: art ? [{ src: art }] : undefined,
+      });
+    });
+    navigator.mediaSession.playbackState = playback.playing ? "playing" : "paused";
+    navigator.mediaSession.setActionHandler("play", togglePause);
+    navigator.mediaSession.setActionHandler("pause", togglePause);
+    navigator.mediaSession.setActionHandler("previoustrack", previous);
+    navigator.mediaSession.setActionHandler("nexttrack", next);
+    navigator.mediaSession.setActionHandler("seekto", (details) => {
+      if (typeof details.seekTime === "number") seek(details.seekTime);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [getArt, library, next, playback.playing, playback.trackId, previous, seek, togglePause]);
+
   const addLibraryFolder = useCallback(async () => {
     try {
       const picked = await open({
@@ -492,7 +737,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         const tracks = await api.scanLibrary(nextPaths);
         setLibrary(tracks);
-        setPlaylists([]);
         notify(`Biblioteca escaneada: ${tracks.length} faixa(s) encontrada(s)`, "success");
       } finally {
         setScanning(false);
@@ -547,11 +791,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
     playlists,
     queue,
     playback,
+    history,
     playTrack,
+    playCollection,
+    enqueue,
+    enqueueNext,
+    removeFromQueue,
+    reorderQueue,
+    setShuffle,
+    setRepeat,
+    seek,
     togglePause,
     next,
     previous,
     favorite,
+    createPlaylist,
+    renamePlaylist,
+    deletePlaylist,
+    addToPlaylist,
+    removeFromPlaylist,
+    clearHistory,
+    getArt,
     scanning,
     addLibraryFolder,
     profiles,

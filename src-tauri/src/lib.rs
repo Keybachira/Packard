@@ -3,6 +3,7 @@ mod audio;
 mod hardware;
 mod library;
 mod music;
+mod music_store;
 mod platform;
 mod playback;
 mod profiles;
@@ -15,6 +16,7 @@ use audio::AudioLabParams;
 use hardware::{AudioDevice, ConnectionType, DeviceSettings, SubwooferState};
 use hardware::devices::DeviceRegistry;
 use music::{MusicEngine, PlaybackState, Playlist, Track};
+use music_store::MusicPersist;
 use platform::loopback::LoopbackCapture;
 use profiles::{AppProfileBinding, Profile, RoomProfile};
 use remote::hub::RemoteHub;
@@ -293,27 +295,21 @@ fn get_library(state: State<AppState>) -> Vec<Track> {
 }
 
 /// Walk every configured library folder, read tags, and replace the current
-/// library with the freshly scanned tracks (favorite flags are preserved by
-/// track id across rescans).
+/// library with the freshly scanned tracks. Favorite flags, playlists,
+/// history, queue order and shuffle/repeat are preserved by track id across
+/// rescans via the persisted music store.
 #[tauri::command]
 fn scan_library(state: State<AppState>, paths: Vec<String>) -> Vec<Track> {
-    let mut tracks = library::scan_folders(&paths);
+    let tracks = library::scan_folders(&paths);
     let mut music = match state.music.lock() {
         Ok(g) => g,
         Err(_) => return tracks,
     };
-    let favorites: std::collections::HashSet<String> = music
-        .library
-        .iter()
-        .filter(|t| t.favorite)
-        .map(|t| t.id.clone())
-        .collect();
-    for track in tracks.iter_mut() {
-        track.favorite = favorites.contains(&track.id);
-    }
+    let persisted = MusicPersist::collect(&music);
     music.library = tracks.clone();
-    music.playlists.clear();
-    music.playback = PlaybackState::default();
+    music.playback.track_id = None;
+    music.playback.playing = false;
+    persisted.apply_to(&mut music);
     tracks
 }
 
@@ -367,8 +363,13 @@ fn get_playback(state: State<AppState>) -> PlaybackState {
 }
 
 #[tauri::command]
-fn player_play(state: State<AppState>, track_id: String) -> Result<PlaybackState, String> {
+fn player_play(
+    app: tauri::AppHandle,
+    state: State<AppState>,
+    track_id: String,
+) -> Result<PlaybackState, String> {
     player_play_track_impl(&state, &track_id)?;
+    persist_music(&app, &state);
     broadcast_remote(&state);
     state.music.lock().map_err(err).map(|m| m.playback.clone())
 }
@@ -418,8 +419,12 @@ pub(crate) fn player_play_impl(state: &AppState) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn player_toggle_pause(state: State<AppState>) -> Result<PlaybackState, String> {
+fn player_toggle_pause(
+    app: tauri::AppHandle,
+    state: State<AppState>,
+) -> Result<PlaybackState, String> {
     player_toggle_pause_impl(&state)?;
+    persist_music(&app, &state);
     broadcast_remote(&state);
     state.music.lock().map_err(err).map(|m| m.playback.clone())
 }
@@ -451,8 +456,9 @@ pub(crate) fn player_pause_impl(state: &AppState) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn player_next(state: State<AppState>) -> Result<PlaybackState, String> {
+fn player_next(app: tauri::AppHandle, state: State<AppState>) -> Result<PlaybackState, String> {
     player_next_impl(&state)?;
+    persist_music(&app, &state);
     broadcast_remote(&state);
     state.music.lock().map_err(err).map(|m| m.playback.clone())
 }
@@ -471,8 +477,9 @@ pub(crate) fn player_next_impl(state: &AppState) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn player_previous(state: State<AppState>) -> Result<PlaybackState, String> {
+fn player_previous(app: tauri::AppHandle, state: State<AppState>) -> Result<PlaybackState, String> {
     player_previous_impl(&state)?;
+    persist_music(&app, &state);
     broadcast_remote(&state);
     state.music.lock().map_err(err).map(|m| m.playback.clone())
 }
@@ -505,13 +512,319 @@ fn get_queue(state: State<AppState>) -> Vec<Track> {
 #[tauri::command]
 fn toggle_favorite(state: State<AppState>, track_id: String) -> Result<Vec<Track>, String> {
     let mut music = state.music.lock().map_err(err)?;
-    let track = music
-        .library
-        .iter_mut()
-        .find(|t| t.id == track_id)
-        .ok_or_else(|| format!("unknown track '{track_id}'"))?;
-    track.favorite = !track.favorite;
+    music.toggle_favorite(&track_id)?;
     Ok(music.library.clone())
+}
+
+// --- Music persistence + Phase 03 player commands ---------------------------
+
+/// Snapshot the music engine to `music.json` (favorites, playlists, history,
+/// queue, shuffle/repeat). Best-effort: failures only log so the UI never
+/// breaks because the disk was unwritable.
+pub(crate) fn persist_music(app: &tauri::AppHandle, state: &AppState) {
+    let snapshot = state
+        .music
+        .lock()
+        .map(|m| MusicPersist::collect(&m))
+        .ok();
+    if let Some(persist) = snapshot {
+        if let Err(e) = persist.save(app) {
+            eprintln!("persist music: {e}");
+        }
+    }
+}
+
+/// Play a specific track against an explicit queue order (album, artist,
+/// playlist, multi-selection or the current full-library order).
+#[tauri::command]
+fn player_play_collection(
+    app: tauri::AppHandle,
+    state: State<AppState>,
+    track_id: String,
+    ids: Vec<String>,
+) -> Result<PlaybackState, String> {
+    {
+        let mut music = state.music.lock().map_err(err)?;
+        music.play_collection(&track_id, ids)?;
+    }
+    play_track_file(&state, &track_id);
+    persist_music(&app, &state);
+    broadcast_remote(&state);
+    state.music.lock().map_err(err).map(|m| m.playback.clone())
+}
+
+/// Append track ids to the end of the real play queue (no immediate play).
+#[tauri::command]
+fn enqueue_ids(
+    app: tauri::AppHandle,
+    state: State<AppState>,
+    track_ids: Vec<String>,
+) -> Result<Vec<Track>, String> {
+    {
+        let mut music = state.music.lock().map_err(err)?;
+        music.enqueue(&track_ids);
+    }
+    persist_music(&app, &state);
+    broadcast_remote(&state);
+    state.music.lock().map_err(err).map(|m| m.resolved_queue())
+}
+
+/// Insert track ids to play right after the current track.
+#[tauri::command]
+fn enqueue_next_ids(
+    app: tauri::AppHandle,
+    state: State<AppState>,
+    track_ids: Vec<String>,
+) -> Result<Vec<Track>, String> {
+    {
+        let mut music = state.music.lock().map_err(err)?;
+        music.enqueue_next(&track_ids);
+    }
+    persist_music(&app, &state);
+    broadcast_remote(&state);
+    state.music.lock().map_err(err).map(|m| m.resolved_queue())
+}
+
+#[tauri::command]
+fn remove_from_queue(
+    app: tauri::AppHandle,
+    state: State<AppState>,
+    track_id: String,
+) -> Result<Vec<Track>, String> {
+    {
+        let mut music = state.music.lock().map_err(err)?;
+        music.remove_from_queue(&track_id);
+    }
+    persist_music(&app, &state);
+    broadcast_remote(&state);
+    state.music.lock().map_err(err).map(|m| m.resolved_queue())
+}
+
+#[tauri::command]
+fn reorder_queue(
+    app: tauri::AppHandle,
+    state: State<AppState>,
+    from: usize,
+    to: usize,
+) -> Result<Vec<Track>, String> {
+    {
+        let mut music = state.music.lock().map_err(err)?;
+        music.reorder_queue(from, to);
+    }
+    persist_music(&app, &state);
+    broadcast_remote(&state);
+    state.music.lock().map_err(err).map(|m| m.resolved_queue())
+}
+
+#[tauri::command]
+fn set_queue(
+    app: tauri::AppHandle,
+    state: State<AppState>,
+    track_ids: Vec<String>,
+) -> Result<Vec<Track>, String> {
+    {
+        let mut music = state.music.lock().map_err(err)?;
+        music.set_queue(track_ids);
+    }
+    persist_music(&app, &state);
+    broadcast_remote(&state);
+    state.music.lock().map_err(err).map(|m| m.resolved_queue())
+}
+
+#[tauri::command]
+fn clear_queue(app: tauri::AppHandle, state: State<AppState>) -> Result<Vec<Track>, String> {
+    {
+        let mut music = state.music.lock().map_err(err)?;
+        music.clear_queue();
+    }
+    if let Ok(mut engine) = state.playback.lock() {
+        engine.stop();
+    }
+    persist_music(&app, &state);
+    broadcast_remote(&state);
+    Ok(Vec::new())
+}
+
+#[tauri::command]
+fn player_set_shuffle(
+    app: tauri::AppHandle,
+    state: State<AppState>,
+    shuffle: bool,
+) -> Result<PlaybackState, String> {
+    {
+        let mut music = state.music.lock().map_err(err)?;
+        music.set_shuffle(shuffle);
+    }
+    persist_music(&app, &state);
+    broadcast_remote(&state);
+    state.music.lock().map_err(err).map(|m| m.playback.clone())
+}
+
+#[tauri::command]
+fn player_set_repeat(
+    app: tauri::AppHandle,
+    state: State<AppState>,
+    repeat: bool,
+) -> Result<PlaybackState, String> {
+    {
+        let mut music = state.music.lock().map_err(err)?;
+        music.set_repeat(repeat);
+    }
+    persist_music(&app, &state);
+    broadcast_remote(&state);
+    state.music.lock().map_err(err).map(|m| m.playback.clone())
+}
+
+/// Seek the current track to `position_secs` (real re-decode for file-backed
+/// tracks; state-only for demo tracks).
+#[tauri::command]
+fn player_seek(
+    state: State<AppState>,
+    position_secs: f32,
+) -> Result<PlaybackState, String> {
+    player_seek_impl(&state, position_secs)?;
+    broadcast_remote(&state);
+    state.music.lock().map_err(err).map(|m| m.playback.clone())
+}
+
+pub(crate) fn player_seek_impl(state: &AppState, position_secs: f32) -> Result<(), String> {
+    let (target, path) = {
+        let mut music = state.music.lock().map_err(err)?;
+        let target = music.seek(position_secs);
+        let path = music
+            .playback
+            .track_id
+            .clone()
+            .and_then(|id| music.library.iter().find(|t| t.id == id))
+            .and_then(|t| t.path.clone());
+        (target, path)
+    };
+    if let Some(path) = path {
+        if let Ok(mut engine) = state.playback.lock() {
+            if let Err(e) = engine.seek(&path, state.dsp.clone(), None, target) {
+                eprintln!("seek error: {e}");
+            }
+        }
+    }
+    Ok(())
+}
+
+// --- Playlists --------------------------------------------------------------
+
+#[tauri::command]
+fn create_playlist(
+    app: tauri::AppHandle,
+    state: State<AppState>,
+    name: String,
+) -> Result<Playlist, String> {
+    let playlist = {
+        let mut music = state.music.lock().map_err(err)?;
+        music.create_playlist(&name)?
+    };
+    persist_music(&app, &state);
+    Ok(playlist)
+}
+
+#[tauri::command]
+fn rename_playlist(
+    app: tauri::AppHandle,
+    state: State<AppState>,
+    playlist_id: String,
+    name: String,
+) -> Result<Playlist, String> {
+    let playlist = {
+        let mut music = state.music.lock().map_err(err)?;
+        music.rename_playlist(&playlist_id, &name)?
+    };
+    persist_music(&app, &state);
+    Ok(playlist)
+}
+
+#[tauri::command]
+fn delete_playlist(
+    app: tauri::AppHandle,
+    state: State<AppState>,
+    playlist_id: String,
+) -> Result<(), String> {
+    {
+        let mut music = state.music.lock().map_err(err)?;
+        music.delete_playlist(&playlist_id)?;
+    }
+    persist_music(&app, &state);
+    Ok(())
+}
+
+#[tauri::command]
+fn add_to_playlist(
+    app: tauri::AppHandle,
+    state: State<AppState>,
+    playlist_id: String,
+    track_ids: Vec<String>,
+) -> Result<Playlist, String> {
+    let playlist = {
+        let mut music = state.music.lock().map_err(err)?;
+        music.add_to_playlist(&playlist_id, &track_ids)?
+    };
+    persist_music(&app, &state);
+    Ok(playlist)
+}
+
+#[tauri::command]
+fn remove_from_playlist(
+    app: tauri::AppHandle,
+    state: State<AppState>,
+    playlist_id: String,
+    track_id: String,
+) -> Result<Playlist, String> {
+    let playlist = {
+        let mut music = state.music.lock().map_err(err)?;
+        music.remove_from_playlist(&playlist_id, &track_id)?
+    };
+    persist_music(&app, &state);
+    Ok(playlist)
+}
+
+// --- History ----------------------------------------------------------------
+
+/// Recently played tracks, resolved to full metadata (most recent first).
+#[tauri::command]
+fn get_history(state: State<AppState>) -> Vec<Track> {
+    state
+        .music
+        .lock()
+        .map(|m| m.resolved_history())
+        .unwrap_or_default()
+}
+
+#[tauri::command]
+fn clear_history(app: tauri::AppHandle, state: State<AppState>) -> Result<(), String> {
+    {
+        let mut music = state.music.lock().map_err(err)?;
+        music.clear_history();
+    }
+    persist_music(&app, &state);
+    Ok(())
+}
+
+// --- Album art --------------------------------------------------------------
+
+/// Embedded album art of `track_id` as a `data:` URL, or `null` when the file
+/// has none. The frontend caches the result per track id.
+#[tauri::command]
+fn get_track_art(state: State<AppState>, track_id: String) -> Option<String> {
+    let path = {
+        let music = state.music.lock().ok()?;
+        music
+            .library
+            .iter()
+            .find(|t| t.id == track_id)
+            .and_then(|t| t.path.clone())
+    }?;
+    let path = std::path::Path::new(&path);
+    if !path.exists() {
+        return None;
+    }
+    library::read_track_art(path)
 }
 
 // --- Remote control ---------------------------------------------------------
@@ -788,7 +1101,9 @@ pub fn run() {
                 if !tracks.is_empty() {
                     if let Ok(mut music) = state.music.lock() {
                         music.library = tracks;
-                        music.playlists.clear();
+                        music.playback.track_id = None;
+                        music.playback.playing = false;
+                        MusicPersist::load(app.handle()).apply_to(&mut music);
                     }
                 }
             }
@@ -825,6 +1140,24 @@ pub fn run() {
             player_previous,
             get_queue,
             toggle_favorite,
+            player_play_collection,
+            enqueue_ids,
+            enqueue_next_ids,
+            remove_from_queue,
+            reorder_queue,
+            set_queue,
+            clear_queue,
+            player_set_shuffle,
+            player_set_repeat,
+            player_seek,
+            create_playlist,
+            rename_playlist,
+            delete_playlist,
+            add_to_playlist,
+            remove_from_playlist,
+            get_history,
+            clear_history,
+            get_track_art,
             get_profiles,
             get_app_profile_bindings,
             get_foreground_app,

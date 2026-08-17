@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "../context/AppStore";
 import {
   IconHeart,
@@ -23,23 +23,37 @@ export default function PlayerBar() {
     next,
     previous,
     favorite,
+    setShuffle,
+    setRepeat,
+    seek,
+    getArt,
     deviceSettings,
     onVolume,
     onMute,
     setSection,
-    notify,
   } = useApp();
   const current = useMemo(
     () => library.find((t) => t.id === playback.trackId) ?? null,
     [library, playback.trackId],
   );
 
+  const [art, setArt] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setArt(null);
+    if (current) {
+      getArt(current.id).then((a) => {
+        if (!cancelled) setArt(a);
+      });
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [current?.id, getArt]);
+
   const duration = current?.durationSecs ?? 0;
   const position = playback.positionSecs;
   const pct = duration > 0 ? Math.min(100, (position / duration) * 100) : 0;
-
-  const [shuffleOn, setShuffleOn] = useState(playback.shuffle);
-  const [repeatOn, setRepeatOn] = useState(playback.repeat);
 
   const [hoverPct, setHoverPct] = useState<number | null>(null);
   const seekRef = useRef<HTMLDivElement>(null);
@@ -49,6 +63,13 @@ export default function PlayerBar() {
     const r = seekRef.current.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
     setHoverPct(ratio * 100);
+  };
+
+  const onSeekClick = (e: React.MouseEvent) => {
+    if (!seekRef.current) return;
+    const r = seekRef.current.getBoundingClientRect();
+    const ratio = Math.max(0, Math.min(1, (e.clientX - r.left) / r.width));
+    seek(ratio * duration);
   };
 
   return (
@@ -63,9 +84,22 @@ export default function PlayerBar() {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
+              overflow: "hidden",
             }}
           >
-            <span style={{ fontSize: 26 }}>♫</span>
+            {art ? (
+              <img
+                src={art}
+                alt=""
+                style={{
+                  width: "100%",
+                  height: "100%",
+                  objectFit: "cover",
+                }}
+              />
+            ) : (
+              <span style={{ fontSize: 26 }}>♫</span>
+            )}
           </div>
           <div className="track_info">
             <p className="track_title">{current?.title ?? "Nada tocando"}</p>
@@ -77,12 +111,9 @@ export default function PlayerBar() {
         <div className="center_pane_section">
           <div className="t_actions">
             <button
-              className={`iconBtn ${shuffleOn ? "activeBtn" : ""}`}
+              className={`iconBtn ${playback.shuffle ? "activeBtn" : ""}`}
               title="Shuffle"
-              onClick={() => {
-                setShuffleOn((s) => !s);
-                notify(shuffleOn ? "Shuffle Off" : "Shuffle On");
-              }}
+              onClick={() => setShuffle(!playback.shuffle)}
             >
               <IconShuffle size={18} />
             </button>
@@ -112,12 +143,9 @@ export default function PlayerBar() {
               <IconNext size={18} />
             </button>
             <button
-              className={`iconBtn ${repeatOn ? "activeBtn" : ""}`}
+              className={`iconBtn ${playback.repeat ? "activeBtn" : ""}`}
               title="Repetir"
-              onClick={() => {
-                setRepeatOn((r) => !r);
-                notify(repeatOn ? "Repeat Off" : "Repeat On");
-              }}
+              onClick={() => setRepeat(!playback.repeat)}
             >
               <IconRepeat size={18} />
             </button>
@@ -132,6 +160,7 @@ export default function PlayerBar() {
               ref={seekRef}
               onMouseMove={onHover}
               onMouseLeave={() => setHoverPct(null)}
+              onClick={onSeekClick}
             >
               <div className="seekProgress" style={{ width: `${pct}%` }}>
                 <div></div>

@@ -921,12 +921,12 @@ Isso facilita manutenção e evolução.
 
 * [x] Player
 * [x] Biblioteca
-* [ ] Playlists
-* [ ] Fila
-* [ ] Histórico
-* [ ] Favoritos
-* [ ] Metadados
-* [ ] Capas
+* [x] Playlists
+* [x] Fila
+* [x] Histórico
+* [x] Favoritos
+* [x] Metadados
+* [x] Capas
 * [ ] Mini-player
 
 ---

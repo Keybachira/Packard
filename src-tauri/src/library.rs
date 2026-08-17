@@ -95,3 +95,24 @@ fn read_track(path: &Path) -> Option<Track> {
         path: Some(path.to_string_lossy().to_string()),
     })
 }
+
+/// Extract the embedded album art of an audio file as a `data:` URL, so the
+/// frontend can render a real cover without reading any file directly.
+/// Returns `None` when the file has no picture (the UI falls back to a
+/// gradient tile).
+pub fn read_track_art(path: &Path) -> Option<String> {
+    use base64::Engine as _;
+    use lofty::file::TaggedFileExt;
+
+    let tagged = lofty::read_from_path(path).ok()?;
+    let tag = tagged.primary_tag().or_else(|| tagged.first_tag())?;
+    let picture = tag.pictures().first()?;
+    let mime = picture
+        .mime_type()
+        .map(|m| m.to_string())
+        .unwrap_or_else(|| "image/jpeg".into());
+    Some(format!(
+        "data:{mime};base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(picture.data())
+    ))
+}

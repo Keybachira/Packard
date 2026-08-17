@@ -1573,6 +1573,11 @@ html.light .side-pane-tab.active {
   color: #ef4444;
   text-decoration: underline;
 }
+.queue-head .q-count {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-faint);
+}
 .queue-item {
   display: flex;
   align-items: center;

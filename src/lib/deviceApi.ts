@@ -112,6 +112,96 @@ export async function toggleFavorite(trackId: string): Promise<Track[]> {
   return invoke<Track[]>("toggle_favorite", { trackId });
 }
 
+export async function playerPlayCollection(
+  trackId: string,
+  ids: string[],
+): Promise<PlaybackState> {
+  return invoke<PlaybackState>("player_play_collection", { trackId, ids });
+}
+
+export async function enqueueIds(trackIds: string[]): Promise<Track[]> {
+  return invoke<Track[]>("enqueue_ids", { trackIds });
+}
+
+export async function enqueueNextIds(trackIds: string[]): Promise<Track[]> {
+  return invoke<Track[]>("enqueue_next_ids", { trackIds });
+}
+
+export async function removeFromQueue(trackId: string): Promise<Track[]> {
+  return invoke<Track[]>("remove_from_queue", { trackId });
+}
+
+export async function reorderQueue(from: number, to: number): Promise<Track[]> {
+  return invoke<Track[]>("reorder_queue", { from, to });
+}
+
+export async function setQueue(trackIds: string[]): Promise<Track[]> {
+  return invoke<Track[]>("set_queue", { trackIds });
+}
+
+export async function clearQueue(): Promise<Track[]> {
+  return invoke<Track[]>("clear_queue");
+}
+
+export async function playerSetShuffle(shuffle: boolean): Promise<PlaybackState> {
+  return invoke<PlaybackState>("player_set_shuffle", { shuffle });
+}
+
+export async function playerSetRepeat(repeat: boolean): Promise<PlaybackState> {
+  return invoke<PlaybackState>("player_set_repeat", { repeat });
+}
+
+export async function playerSeek(positionSecs: number): Promise<PlaybackState> {
+  return invoke<PlaybackState>("player_seek", { positionSecs });
+}
+
+// --- Playlists --------------------------------------------------------------
+
+export async function createPlaylist(name: string): Promise<Playlist> {
+  return invoke<Playlist>("create_playlist", { name });
+}
+
+export async function renamePlaylist(
+  playlistId: string,
+  name: string,
+): Promise<Playlist> {
+  return invoke<Playlist>("rename_playlist", { playlistId, name });
+}
+
+export async function deletePlaylist(playlistId: string): Promise<void> {
+  await invoke("delete_playlist", { playlistId });
+}
+
+export async function addToPlaylist(
+  playlistId: string,
+  trackIds: string[],
+): Promise<Playlist> {
+  return invoke<Playlist>("add_to_playlist", { playlistId, trackIds });
+}
+
+export async function removeFromPlaylist(
+  playlistId: string,
+  trackId: string,
+): Promise<Playlist> {
+  return invoke<Playlist>("remove_from_playlist", { playlistId, trackId });
+}
+
+// --- History ----------------------------------------------------------------
+
+export async function getHistory(): Promise<Track[]> {
+  return invoke<Track[]>("get_history");
+}
+
+export async function clearHistory(): Promise<void> {
+  await invoke("clear_history");
+}
+
+// --- Album art --------------------------------------------------------------
+
+export async function getTrackArt(trackId: string): Promise<string | null> {
+  return invoke<string | null>("get_track_art", { trackId });
+}
+
 // --- Profiles --------------------------------------------------------------
 
 export async function getProfiles(): Promise<Profile[]> {

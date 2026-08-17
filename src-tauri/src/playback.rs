@@ -162,6 +162,10 @@ fn open_device(preferred_name: Option<&str>) -> Result<MixerDeviceSink, String> 
 pub struct PlaybackEngine {
     device: Option<MixerDeviceSink>,
     player: Option<Player>,
+    /// Time (seconds) the current source starts at relative to the file, so
+    /// seeks that re-decode from a `skip_duration` offset report the true
+    /// position: `position = base_offset + player.get_pos()`.
+    base_offset_secs: f32,
 }
 
 impl PlaybackEngine {
@@ -169,6 +173,7 @@ impl PlaybackEngine {
         Self {
             device: None,
             player: None,
+            base_offset_secs: 0.0,
         }
     }
 
@@ -177,8 +182,16 @@ impl PlaybackEngine {
     /// was playing before.
     pub fn play_file(&mut self, path: &str, dsp: Arc<SharedDsp>, device_name: Option<&str>) -> Result<(), String> {
         let file = File::open(path).map_err(|e| format!("failed to open '{path}': {e}"))?;
-        let decoder =
-            rodio::Decoder::new(BufReader::new(file)).map_err(|e| format!("failed to decode '{path}': {e}"))?;
+        // Guard against panics from the decoder (e.g. a malformed MP3 with a
+        // LAME/Xing gapless header whose delay + padding exceeds the frame
+        // count, which underflows symphonia's frame arithmetic). A panic here
+        // would otherwise unwind through a WebView2 callback on the main
+        // thread and abort the whole app.
+        let decoder = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            rodio::Decoder::new(BufReader::new(file))
+        }))
+        .map_err(|_| format!("failed to decode '{path}': malformed or unsupported audio"))?
+        .map_err(|e| format!("failed to decode '{path}': {e}"))?;
         let source = DspSource::new(decoder, dsp);
 
         let device = open_device(device_name)?;
@@ -188,6 +201,33 @@ impl PlaybackEngine {
 
         self.device = Some(device);
         self.player = Some(player);
+        self.base_offset_secs = 0.0;
+        Ok(())
+    }
+
+    /// Seek the current track to `target_secs`. Because rodio's own MP3 decoder
+    /// does not implement `try_seek`, this re-decodes the file and skips ahead
+    /// with `Source::skip_duration` — a couple of hundred ms of extra work but
+    /// it works for every format. The resulting source starts at the target, so
+    /// the real position is tracked via `base_offset_secs`.
+    pub fn seek(&mut self, path: &str, dsp: Arc<SharedDsp>, device_name: Option<&str>, target_secs: f32) -> Result<(), String> {
+        let target = Duration::from_secs_f32(target_secs.max(0.0));
+        let file = File::open(path).map_err(|e| format!("failed to open '{path}': {e}"))?;
+        let decoder = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            rodio::Decoder::new(BufReader::new(file))
+        }))
+        .map_err(|_| format!("failed to decode '{path}': malformed or unsupported audio"))?
+        .map_err(|e| format!("failed to decode '{path}': {e}"))?;
+        let source = DspSource::new(decoder.skip_duration(target), dsp);
+
+        let device = open_device(device_name)?;
+        let player = Player::connect_new(device.mixer());
+        player.append(source);
+        player.play();
+
+        self.device = Some(device);
+        self.player = Some(player);
+        self.base_offset_secs = target_secs.max(0.0);
         Ok(())
     }
 
@@ -223,7 +263,8 @@ impl PlaybackEngine {
     }
 
     pub fn position_secs(&self) -> f32 {
-        self.player.as_ref().map(|p| p.get_pos().as_secs_f32()).unwrap_or(0.0)
+        let live = self.player.as_ref().map(|p| p.get_pos().as_secs_f32()).unwrap_or(0.0);
+        self.base_offset_secs + live
     }
 }
 
