@@ -1,7 +1,21 @@
+import { useMemo, useState } from "react";
 import { useApp } from "../context/AppStore";
 import DeviceManager from "../components/DeviceManager";
 import Panel from "../components/Panel";
 import Slider from "../components/Slider";
+import { connectionLabel, iconForConnection } from "../components/icons";
+import type { ConnectionType } from "../types/audio";
+import styles from "./DevicesPage.module.css";
+
+const TRANSPORT_TYPES: ConnectionType[] = [
+  "usb",
+  "bluetooth",
+  "hdmi",
+  "dac",
+  "headphones",
+  "microphone",
+  "audio_interface",
+];
 
 export default function DevicesPage() {
   const {
@@ -17,11 +31,32 @@ export default function DevicesPage() {
     onMute,
   } = useApp();
 
+  const [transportFilter, setTransportFilter] = useState<ConnectionType | null>(null);
+
+  const counts = useMemo(() => {
+    const map = new Map<ConnectionType, number>();
+    for (const d of devices) {
+      map.set(d.connection, (map.get(d.connection) ?? 0) + 1);
+    }
+    return map;
+  }, [devices]);
+
+  const filteredDevices = useMemo(
+    () =>
+      transportFilter
+        ? devices.filter((d) => d.connection === transportFilter)
+        : devices,
+    [devices, transportFilter]
+  );
+
+  const toggleTransport = (t: ConnectionType) =>
+    setTransportFilter((cur) => (cur === t ? null : t));
+
   return (
     <div className="page">
       <div className="grid" style={{ gridTemplateColumns: "300px 1fr" }}>
         <DeviceManager
-          devices={devices}
+          devices={filteredDevices}
           selectedId={selectedId}
           onSelect={selectDevice}
           onRefresh={refreshDevices}
@@ -40,7 +75,7 @@ export default function DevicesPage() {
                 <div>
                   <div className="device-name" style={{ margin: 0, fontSize: 16 }}>{selected.name}</div>
                   <div style={{ fontSize: 10.5, letterSpacing: 1, color: "var(--text-faint)", textTransform: "uppercase", marginTop: 2 }}>
-                    {selected.connection} · {selected.connected ? "Conectado" : "Offline"}
+                    {connectionLabel(selected.connection)} · {selected.connected ? "Conectado" : "Offline"}
                   </div>
                 </div>
                 <button
@@ -76,7 +111,7 @@ export default function DevicesPage() {
                   <SpecRow label="Taxa de Amostragem" value="48 kHz" />
                   <SpecRow label="Profundidade de Bits" value="24-bit" />
                   <SpecRow label="Canais" value="2.0 (estéreo)" />
-                  <SpecRow label="Conexão" value={selected.connection.toUpperCase()} />
+                  <SpecRow label="Conexão" value={connectionLabel(selected.connection)} />
                 </div>
               </div>
             </div>
@@ -89,12 +124,38 @@ export default function DevicesPage() {
       </div>
 
       <Panel title="TRANSPORTE FUTURO">
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {["USB", "Bluetooth", "HDMI", "DACs", "Fones de Ouvido", "Microfones", "Interfaces de Áudio"].map((t) => (
-            <span key={t} className="chip">
-              {t}
-            </span>
-          ))}
+        <div className={styles.transportGrid}>
+          {TRANSPORT_TYPES.map((t) => {
+            const n = counts.get(t) ?? 0;
+            const active = transportFilter === t;
+            const isSelected = selected?.connection === t;
+            const meta = active
+              ? "filtro ativo"
+              : isSelected
+                ? "conectado"
+                : n > 0
+                  ? `${n} detectado${n !== 1 ? "s" : ""}`
+                  : "—";
+            return (
+              <button
+                key={t}
+                className={`${styles.transportCard} ${
+                  active ? styles.transportCardActive : ""
+                }`}
+                onClick={() => toggleTransport(t)}
+              >
+                <span className={styles.transportIcon}>
+                  {iconForConnection(t, { size: 18 })}
+                </span>
+                <span className={styles.transportInfo}>
+                  <span className={styles.transportName}>
+                    {connectionLabel(t)}
+                  </span>
+                  <span className={styles.transportMeta}>{meta}</span>
+                </span>
+              </button>
+            );
+          })}
         </div>
       </Panel>
     </div>

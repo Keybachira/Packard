@@ -1,7 +1,7 @@
 // Minimal app-shell cache. The remote only works while genuinely connected
 // to the desktop's WebSocket, so this only speeds up re-opening the page —
 // it never serves stale playback state.
-const CACHE = "soundcore-remote-shell-v1";
+const CACHE = "soundcore-remote-shell-v2";
 const SHELL = ["./", "index.html", "styles.css", "app.js", "manifest.webmanifest", "icon.svg"];
 
 self.addEventListener("install", (event) => {

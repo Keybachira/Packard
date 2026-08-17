@@ -1,4 +1,4 @@
-use crate::remote::protocol::{RemoteDevice, RemotePlayback, SoundCoreState};
+use crate::remote::protocol::{RemoteDevice, RemoteDeviceInfo, RemoteEq, RemotePlayback, SoundCoreState};
 use crate::AppState;
 
 /// The device a remote should control: the connected one, falling back to the
@@ -42,28 +42,46 @@ pub fn playback_remote(state: &AppState) -> RemotePlayback {
 /// Full minimal state pushed to remotes on connect, on demand, and after any
 /// mutation on either side.
 pub fn snapshot_state(state: &AppState) -> SoundCoreState {
-    let device = state.devices.lock().ok().and_then(|d| {
-        let list = d.list();
-        list.iter()
-            .find(|dev| dev.connected)
-            .or_else(|| list.first())
-            .map(|dev| RemoteDevice {
-                id: dev.id.clone(),
-                name: dev.name.clone(),
-                connected: dev.connected,
-            })
+    let devices = state.devices.lock().ok();
+    let list = devices.as_ref().map(|d| d.list()).unwrap_or_default();
+    let active = list
+        .iter()
+        .find(|dev| dev.connected)
+        .or_else(|| list.first());
+
+    let device = active.map(|dev| RemoteDevice {
+        id: dev.id.clone(),
+        name: dev.name.clone(),
+        connected: dev.connected,
     });
 
-    let (volume, muted) = match &device {
-        Some(dev) => {
-            let devices = state.devices.lock().ok();
-            match devices.as_ref().and_then(|d| d.get(&dev.id)) {
-                Some(found) => (found.volume, found.muted),
-                None => (0.0, false),
-            }
-        }
+    let (volume, muted) = match active {
+        Some(dev) => match devices.as_ref().and_then(|d| d.get(&dev.id)) {
+            Some(found) => (found.volume, found.muted),
+            None => (0.0, false),
+        },
         None => (0.0, false),
     };
+
+    let eq = match active {
+        Some(dev) => eq_remote(state, dev),
+        None => RemoteEq {
+            gains: vec![0.0; crate::audio::equalizer::BAND_FREQUENCIES.len()],
+            preset: "FLAT".into(),
+            supports_eq: false,
+        },
+    };
+
+    let devices = list
+        .iter()
+        .map(|dev| RemoteDeviceInfo {
+            id: dev.id.clone(),
+            name: dev.name.clone(),
+            connection: dev.connection.to_string(),
+            connected: dev.connected,
+            active: active.map(|a| a.id == dev.id).unwrap_or(false),
+        })
+        .collect();
 
     SoundCoreState {
         device,
@@ -71,6 +89,24 @@ pub fn snapshot_state(state: &AppState) -> SoundCoreState {
         muted,
         playback: build_playback(state),
         active_profile: None,
+        eq,
+        devices,
+    }
+}
+
+/// EQ gains + preset for the given (active) device, from the per-device
+/// settings store so the phone sees exactly what the DSP is running.
+fn eq_remote(state: &AppState, device: &crate::hardware::AudioDevice) -> RemoteEq {
+    let settings = state
+        .device_settings
+        .lock()
+        .ok()
+        .and_then(|m| m.get(&device.id).cloned())
+        .unwrap_or_default();
+    RemoteEq {
+        gains: settings.eq,
+        preset: settings.preset,
+        supports_eq: device.supports_eq,
     }
 }
 

@@ -328,14 +328,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setSelectedId(id);
     setBusy(true);
     try {
-      const updated = await api.connectDevice(id, "usb");
+      const existing = devices.find((d) => d.id === id);
+      const updated = await api.connectDevice(id, existing?.connection ?? "none");
       setDevices((prev) => prev.map((d) => (d.id === id ? updated : d)));
     } catch (e) {
       notify(`Falha ao conectar: ${e}`, "error");
     } finally {
       setBusy(false);
     }
-  }, []);
+  }, [devices]);
 
   const onVolume = useCallback(
     async (volume: number) => {

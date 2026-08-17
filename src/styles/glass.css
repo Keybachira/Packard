@@ -145,6 +145,15 @@ html.light {
 .nav-item.active svg {
   color: var(--emerald-2);
 }
+/* flb.css still carries `html.light .nav-item.active { color: #fff }` from
+   when this pill had a solid accent background; that rule's extra classes
+   out-specificity our plain `.nav-item.active` above, so white text was
+   winning over this pale glass pill in light mode (unreadable). Restate the
+   correct color here, at the same specificity flb.css used, so — like every
+   other active/selected chip in this file — the later rule (this one) wins. */
+html.light .nav-item.active {
+  color: var(--emerald-ink);
+}
 
 .mini-player {
   background: var(--glass-fill);

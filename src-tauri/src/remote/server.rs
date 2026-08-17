@@ -102,6 +102,28 @@ pub fn start_position_ticker(app: tauri::AppHandle) {
     });
 }
 
+/// ~7 Hz push of live normalized spectrum bins while at least one remote is
+/// connected, so the phone's analyzer page moves without the phone polling.
+pub fn start_analyzer_ticker(app: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let mut ticker = tokio::time::interval(std::time::Duration::from_millis(150));
+        loop {
+            ticker.tick().await;
+            let state = app.state::<AppState>();
+            if state.remote.clients().is_empty() {
+                continue;
+            }
+            let bins =
+                crate::analyzer::spectrum_bins(&state.tap, ANALYZER_BINS, state.tap.sample_rate())
+                    .unwrap_or_else(|| vec![0.0; ANALYZER_BINS]);
+            state.remote.broadcast(RemoteEvent::StateAnalyzer { bins });
+        }
+    });
+}
+
+/// Number of log-scaled bins pushed in `state.analyzer`.
+const ANALYZER_BINS: usize = 48;
+
 fn bind_free() -> Result<(std::net::TcpListener, u16), String> {
     for port in PORT_START..=PORT_END {
         if let Ok(listener) = std::net::TcpListener::bind(("0.0.0.0", port)) {
@@ -270,6 +292,18 @@ async fn handle_socket(socket: WebSocket, state: ServerState) {
                     let _ = sink.close().await;
                     break;
                 }
+                Ok(RemoteEvent::KickClient { remote_id: target }) => {
+                    if target != remote_id {
+                        // Not addressed to this connection — every other
+                        // paired remote stays untouched.
+                        continue;
+                    }
+                    // The JS client only understands `system.disconnect`;
+                    // reuse that wire message for the targeted kick.
+                    let _ = send_event(&mut sink, RemoteEvent::SystemDisconnect).await;
+                    let _ = sink.close().await;
+                    break;
+                }
                 Ok(event) => {
                     if send_event(&mut sink, event).await.is_err() {
                         break;
@@ -328,6 +362,25 @@ async fn handle_ws_message(state: &ServerState, msg: Message) -> bool {
         }
         RemoteCommand::PlayerPrevious => {
             if let Err(e) = crate::player_previous_impl(&app_state) {
+                state.hub.broadcast(RemoteEvent::Error { message: e });
+            }
+        }
+        RemoteCommand::EqSet { gains } => {
+            if let Some(id) = snapshot::active_device_id(&app_state) {
+                if let Err(e) = crate::set_eq_impl(&app_state, &id, gains) {
+                    state.hub.broadcast(RemoteEvent::Error { message: e });
+                }
+            }
+        }
+        RemoteCommand::PresetApply { name } => {
+            if let Some(id) = snapshot::active_device_id(&app_state) {
+                if let Err(e) = crate::apply_preset_impl(&app_state, &id, &name) {
+                    state.hub.broadcast(RemoteEvent::Error { message: e });
+                }
+            }
+        }
+        RemoteCommand::DeviceSet { device_id } => {
+            if let Err(e) = crate::switch_device_impl(&app_state, &device_id) {
                 state.hub.broadcast(RemoteEvent::Error { message: e });
             }
         }

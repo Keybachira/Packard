@@ -21,6 +21,7 @@ use remote::hub::RemoteHub;
 use remote::protocol::RemoteEvent;
 use remote::snapshot;
 use settings::AppSettings;
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use tauri::{Manager, PhysicalPosition, PhysicalSize, State, Window};
 
@@ -42,6 +43,10 @@ pub struct AppState {
     mini_geometry: Mutex<Option<(PhysicalPosition<i32>, PhysicalSize<u32>)>>,
     /// Remote-control pairing hub shared with the local axum server.
     remote: Arc<RemoteHub>,
+    /// Per-device EQ/preset/subwoofer settings, keyed by device id, so they
+    /// round-trip correctly when the UI re-selects a device instead of
+    /// silently resetting to defaults.
+    device_settings: Mutex<HashMap<String, DeviceSettings>>,
 }
 
 impl Default for AppState {
@@ -66,6 +71,7 @@ impl Default for AppState {
             _capture: Some(capture),
             mini_geometry: Mutex::new(None),
             remote: RemoteHub::new(),
+            device_settings: Mutex::new(HashMap::new()),
         }
     }
 }
@@ -97,7 +103,9 @@ fn err<E: std::fmt::Display>(e: E) -> String {
 
 #[tauri::command]
 fn list_devices(state: State<AppState>) -> Vec<AudioDevice> {
-    let live = platform::wasapi::Wasapi::new().enumerate_render_endpoints();
+    let wasapi = platform::wasapi::Wasapi::new();
+    let mut live = wasapi.enumerate_render_endpoints();
+    live.extend(wasapi.enumerate_capture_endpoints());
     let mut registry = match state.devices.lock() {
         Ok(g) => g,
         Err(_) => return live,
@@ -120,9 +128,23 @@ fn connect_device(state: State<AppState>, id: String, _connection: ConnectionTyp
 }
 
 #[tauri::command]
-fn get_device_settings(state: State<AppState>, _device_id: String) -> DeviceSettings {
-    let _ = state;
-    DeviceSettings::default()
+fn get_device_settings(state: State<AppState>, device_id: String) -> DeviceSettings {
+    let mut settings = state
+        .device_settings
+        .lock()
+        .ok()
+        .and_then(|m| m.get(&device_id).cloned())
+        .unwrap_or_default();
+    // Volume/mute are authoritative in the device registry (mirrors real
+    // WASAPI endpoint state); overlay them on top of the stored EQ/preset/
+    // subwoofer values.
+    if let Ok(devices) = state.devices.lock() {
+        if let Some(device) = devices.get(&device_id) {
+            settings.volume = device.volume;
+            settings.muted = device.muted;
+        }
+    }
+    settings
 }
 
 #[tauri::command]
@@ -165,31 +187,76 @@ pub(crate) fn set_mute_impl(state: &AppState, device_id: &str, muted: bool) -> R
 
 #[tauri::command]
 fn set_eq(state: State<AppState>, device_id: String, gains: Vec<f32>) -> Result<(), String> {
-    let _ = device_id;
+    set_eq_impl(&state, &device_id, gains)?;
+    broadcast_remote(&state);
+    Ok(())
+}
+
+/// Shared by `set_eq` and `apply_preset` (and the remote WebSocket handler):
+/// pushes the gains into the live DSP chain and persists them under the
+/// device's stored settings.
+pub(crate) fn set_eq_impl(state: &AppState, device_id: &str, gains: Vec<f32>) -> Result<(), String> {
     {
         let mut audio = state.audio.lock().map_err(err)?;
         audio.params.eq = gains.clone();
         audio.rebuild_eq();
     }
-    state.dsp.update(|p| p.eq = gains);
+    state.dsp.update(|p| p.eq = gains.clone());
+    if let Ok(mut settings) = state.device_settings.lock() {
+        settings.entry(device_id.to_string()).or_default().eq = gains;
+    }
     Ok(())
 }
 
 #[tauri::command]
 fn apply_preset(state: State<AppState>, device_id: String, preset: String) -> Result<(), String> {
-    let gains: Vec<f32> = match preset.as_str() {
+    apply_preset_impl(&state, &device_id, &preset)?;
+    broadcast_remote(&state);
+    Ok(())
+}
+
+/// Shared by the `apply_preset` command and the remote WebSocket handler.
+pub(crate) fn apply_preset_impl(
+    state: &AppState,
+    device_id: &str,
+    preset: &str,
+) -> Result<(), String> {
+    let gains: Vec<f32> = match preset {
         "FLAT" => vec![0.0; BAND_FREQUENCIES.len()],
         "CINEMA" => vec![3.0, 4.0, 3.0, 1.0, -1.0, -1.0, 1.0, 2.0, 3.0, 3.0],
         "MUSIC" => vec![0.0, 1.0, 2.0, 3.0, 2.0, 0.0, -1.0, 0.0, 1.0, 2.0],
         "GAME" => vec![-2.0, 0.0, 2.0, 4.0, 5.0, 4.0, 3.0, 2.0, 1.0, 0.0],
-        other => return Err(format!("unknown preset '{other}'")),
+        other => return Err(format!("preset desconhecido '{other}'")),
     };
-    set_eq(state, device_id, gains)
+    set_eq_impl(state, device_id, gains)?;
+    if let Ok(mut settings) = state.device_settings.lock() {
+        settings.entry(device_id.to_string()).or_default().preset = preset.to_string();
+    }
+    Ok(())
+}
+
+/// Make `device_id` the single active device: it becomes the only `connected`
+/// entry in the registry, so `active_device_id()`/the snapshot target it. Used
+/// by the remote's device switcher.
+pub(crate) fn switch_device_impl(state: &AppState, device_id: &str) -> Result<(), String> {
+    let mut devices = state.devices.lock().map_err(err)?;
+    if devices.get(device_id).is_none() {
+        return Err(format!("dispositivo '{device_id}' não encontrado"));
+    }
+    let ids: Vec<String> = devices.list().into_iter().map(|d| d.id).collect();
+    for id in ids {
+        if let Some(device) = devices.get_mut(&id) {
+            device.connected = id == device_id;
+        }
+    }
+    Ok(())
 }
 
 #[tauri::command]
-fn set_subwoofer(state: State<AppState>, _device_id: String, _state: SubwooferState) -> Result<(), String> {
-    let _ = state;
+fn set_subwoofer(state: State<AppState>, device_id: String, subwoofer: SubwooferState) -> Result<(), String> {
+    if let Ok(mut settings) = state.device_settings.lock() {
+        settings.entry(device_id).or_default().subwoofer = subwoofer;
+    }
     Ok(())
 }
 
@@ -449,8 +516,16 @@ fn toggle_favorite(state: State<AppState>, track_id: String) -> Result<Vec<Track
 
 // --- Remote control ---------------------------------------------------------
 
+/// One paired phone in the desktop's "connected remotes" list.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RemoteClientView {
+    id: String,
+    connected_secs: u64,
+}
+
 /// Everything the desktop "Controle Remoto" page needs to render: readiness,
-/// LAN URL, emerald SVG QR, session expiry and connected remote count.
+/// LAN URL, emerald SVG QR, session expiry and connected remotes.
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 struct RemoteStateView {
@@ -462,6 +537,7 @@ struct RemoteStateView {
     session_expires_in: u64,
     connected_count: usize,
     max_remotes: usize,
+    clients: Vec<RemoteClientView>,
 }
 
 fn remote_state_view(state: &AppState) -> RemoteStateView {
@@ -478,6 +554,18 @@ fn remote_state_view(state: &AppState) -> RemoteStateView {
         .as_ref()
         .map(|u| remote::session::qr_svg(u))
         .filter(|svg| !svg.is_empty());
+    let clients: Vec<RemoteClientView> = hub
+        .clients()
+        .into_iter()
+        .map(|c| RemoteClientView {
+            id: c.id,
+            connected_secs: std::time::SystemTime::now()
+                .duration_since(c.connected_at)
+                .unwrap_or_default()
+                .as_secs(),
+        })
+        .collect();
+
     RemoteStateView {
         ready,
         lan_ip,
@@ -485,8 +573,9 @@ fn remote_state_view(state: &AppState) -> RemoteStateView {
         url,
         qr_svg,
         session_expires_in: session.time_remaining().as_secs(),
-        connected_count: hub.connected_ids().len(),
+        connected_count: clients.len(),
         max_remotes: hub.max_remotes(),
+        clients,
     }
 }
 
@@ -504,6 +593,12 @@ fn regenerate_remote_session(state: State<AppState>) -> RemoteStateView {
 #[tauri::command]
 fn disconnect_all_remotes(state: State<AppState>) -> RemoteStateView {
     state.remote.disconnect_all();
+    remote_state_view(&state)
+}
+
+#[tauri::command]
+fn disconnect_remote(state: State<AppState>, remote_id: String) -> RemoteStateView {
+    state.remote.disconnect_client(&remote_id);
     remote_state_view(&state)
 }
 
@@ -698,12 +793,14 @@ pub fn run() {
                 }
             }
 
-            // Bring up the remote-control server (QR pairing + WebSocket) and
-            // the 1s position ticker. Failures only log — the app keeps going.
+            // Bring up the remote-control server (QR pairing + WebSocket), the
+            // 1s position ticker, and the ~7Hz analyzer feed. Failures only
+            // log — the app keeps going.
             if let Err(e) = remote::server::start(app.handle()) {
                 eprintln!("remote server: {e}");
             }
             remote::server::start_position_ticker(app.handle().clone());
+            remote::server::start_analyzer_ticker(app.handle().clone());
 
             Ok(())
         })
@@ -745,6 +842,7 @@ pub fn run() {
             get_remote_state,
             regenerate_remote_session,
             disconnect_all_remotes,
+            disconnect_remote,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

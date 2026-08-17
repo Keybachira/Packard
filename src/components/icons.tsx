@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactElement } from "react";
 
 interface IconProps {
   size?: number;
@@ -242,6 +242,47 @@ export function IconBluetooth(p: IconProps) {
   return (
     <svg {...base(p)}>
       <path d="m7 7 10 10-5 5V2l5 5L7 17" />
+    </svg>
+  );
+}
+
+export function IconHdmi(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M8 5h8l4 4v10H4V9l4-4z" />
+      <path d="M9 13v3M12 13v3M15 13v3M7 9h10" />
+    </svg>
+  );
+}
+
+export function IconDac(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <rect x="3" y="8" width="18" height="8" rx="2" />
+      <path d="M6 8V6h12v2M7 12h.01M17 12h.01M9 14h6" />
+    </svg>
+  );
+}
+
+export function IconMicrophone(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <rect x="9" y="2" width="6" height="12" rx="3" />
+      <path d="M5 10a7 7 0 0 0 14 0M12 17v5M8 22h8" />
+    </svg>
+  );
+}
+
+export function IconAudioInterface(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <rect x="4" y="4" width="16" height="9" rx="2" />
+      <rect x="7" y="16" width="3" height="4" rx="1" />
+      <rect x="14" y="16" width="3" height="4" rx="1" />
+      <circle cx="7.5" cy="8.5" r="0.5" />
+      <circle cx="10.5" cy="8.5" r="0.5" />
+      <circle cx="13.5" cy="8.5" r="0.5" />
+      <circle cx="16.5" cy="8.5" r="0.5" />
     </svg>
   );
 }
@@ -563,4 +604,35 @@ export function IconRefresh(p: IconProps) {
       <path d="M20 5v6h-6" />
     </svg>
   );
+}
+
+const CONNECTION_ICONS: Record<string, (p: IconProps) => ReactElement> = {
+  usb: IconUsb,
+  bluetooth: IconBluetooth,
+  hdmi: IconHdmi,
+  dac: IconDac,
+  headphones: IconHeadphones,
+  microphone: IconMicrophone,
+  audio_interface: IconAudioInterface,
+  none: IconSpeaker,
+};
+
+export function iconForConnection(connection: string, p: IconProps = {}) {
+  const Icon = CONNECTION_ICONS[connection] ?? IconSpeaker;
+  return <Icon {...p} />;
+}
+
+const CONNECTION_LABELS: Record<string, string> = {
+  usb: "USB",
+  bluetooth: "Bluetooth",
+  hdmi: "HDMI",
+  dac: "DAC",
+  headphones: "Fones de Ouvido",
+  microphone: "Microfone",
+  audio_interface: "Interface de Áudio",
+  none: "—",
+};
+
+export function connectionLabel(connection: string) {
+  return CONNECTION_LABELS[connection] ?? connection;
 }

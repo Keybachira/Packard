@@ -124,8 +124,8 @@ pub fn spectrum_bins(tap: &AudioTap, bins: usize, sample_rate: u32) -> Option<Ve
 
         let mut mag_sum = 0.0f32;
         let mut count = 0usize;
-        for b in bin0..bin1 {
-            mag_sum += buffer[b].norm();
+        for sample in &buffer[bin0..bin1] {
+            mag_sum += sample.norm();
             count += 1;
         }
         let mag = if count > 0 { mag_sum / count as f32 } else { 0.0 };

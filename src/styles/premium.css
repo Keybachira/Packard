@@ -273,7 +273,11 @@ button.user-chip.active {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(160deg, var(--accentColor, var(--accent-2)), var(--accent));
+  background: linear-gradient(
+    160deg,
+    var(--accentColor, var(--accent-2)),
+    var(--accent)
+  );
   color: #0a0c0f;
   font-weight: 800;
   font-size: 13px;
@@ -373,7 +377,11 @@ button.user-chip.active {
 .titlebar-bars span {
   width: 3px;
   border-radius: 2px;
-  background: linear-gradient(180deg, var(--accentColor, var(--accent-2)), var(--accent));
+  background: linear-gradient(
+    180deg,
+    var(--accentColor, var(--accent-2)),
+    var(--accent)
+  );
 }
 .titlebar-name {
   font-size: 12px;
@@ -524,30 +532,61 @@ button.user-chip.active {
   position: relative;
   width: 100%;
   height: 100vh;
-  padding: 14px 14px 12px;
+  padding: 16px 16px 14px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 12px;
+  border-radius: 18px;
   background: linear-gradient(165deg, var(--panel-2), var(--panel));
   border: 1px solid var(--border-soft);
+  box-shadow:
+    0 24px 48px -16px rgba(0, 0, 0, 0.55),
+    0 2px 8px -2px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05);
   color: var(--text);
   overflow: hidden;
   cursor: default;
   user-select: none;
 }
 
+/* ambient accent glow, follows the current track's accent color */
 .mini-window::before {
   content: "";
   position: absolute;
   inset: 0;
-  background: radial-gradient(120px 80px at 100% 0%, var(--accent-soft), transparent 70%);
+  background: radial-gradient(
+    140px 100px at 100% 0%,
+    var(--accent-soft),
+    transparent 70%
+  );
+  opacity: 0.9;
+  pointer-events: none;
+}
+
+/* glass top edge highlight */
+.mini-window::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.14),
+    rgba(255, 255, 255, 0) 30%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
   pointer-events: none;
 }
 
 .mini-window-expand {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: 10px;
+  right: 10px;
   width: 22px;
   height: 22px;
   border-radius: 7px;
@@ -558,52 +597,132 @@ button.user-chip.active {
   border: 1px solid var(--border-soft);
   color: var(--text-dim);
   cursor: pointer;
+  z-index: 2;
   transition:
     background 0.18s var(--ease-flb),
-    color 0.18s var(--ease-flb);
+    color 0.18s var(--ease-flb),
+    transform 0.18s var(--ease-flb);
 }
 .mini-window-expand:hover {
   background: rgba(255, 255, 255, 0.12);
   color: var(--text);
+  transform: scale(1.06);
+}
+.mini-window-expand:active {
+  transform: scale(0.94);
+}
+.mini-window-expand:focus-visible {
+  outline: 2px solid var(--accentColor, var(--accent));
+  outline-offset: 2px;
 }
 
 .mini-window-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   min-width: 0;
+  z-index: 1;
 }
 
+/* ------------------------------ art / visualizer ------------------------------ */
+
 .mini-window-art {
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
+  position: relative;
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--accent-soft);
+  gap: 3px;
+  background: linear-gradient(
+    155deg,
+    var(--accent-soft),
+    rgba(255, 255, 255, 0.02)
+  );
   color: var(--accentColor, var(--accent-2));
-  font-size: 16px;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.06),
+    inset 0 -6px 10px -6px rgba(0, 0, 0, 0.35);
 }
+
+.mini-window-art-bar {
+  width: 3px;
+  height: 6px;
+  border-radius: 2px;
+  background: currentColor;
+  opacity: 0.85;
+  transform-origin: bottom;
+}
+
+.mini-window-art.is-playing .mini-window-art-bar {
+  animation: mini-eq 1s ease-in-out infinite;
+}
+.mini-window-art.is-playing .mini-window-art-bar:nth-child(1) {
+  animation-delay: -0.6s;
+}
+.mini-window-art.is-playing .mini-window-art-bar:nth-child(2) {
+  animation-delay: -0.3s;
+}
+.mini-window-art.is-playing .mini-window-art-bar:nth-child(3) {
+  animation-delay: -0.9s;
+}
+.mini-window-art.is-playing .mini-window-art-bar:nth-child(4) {
+  animation-delay: 0s;
+}
+
+@keyframes mini-eq {
+  0%,
+  100% {
+    height: 5px;
+  }
+  50% {
+    height: 16px;
+  }
+}
+
+/* ------------------------------ meta / marquee ------------------------------ */
 
 .mini-window-meta {
   min-width: 0;
   flex: 1;
 }
+
+.mini-window-title-mask {
+  overflow: hidden;
+  white-space: nowrap;
+}
 .mini-window-title {
   font-size: 12.5px;
   font-weight: 700;
+  letter-spacing: -0.01em;
+  display: inline-block;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
+.mini-window-title-mask.is-overflowing:hover .mini-window-title {
+  animation: mini-marquee 6s linear infinite;
+}
+.mini-window-title-mask .mini-window-title-gap {
+  display: inline-block;
+  width: 28px;
+}
+@keyframes mini-marquee {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
 .mini-window-artist {
   font-size: 11px;
   color: var(--text-faint);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  margin-top: 1px;
 }
 
 .mini-window-heart {
@@ -613,43 +732,107 @@ button.user-chip.active {
   cursor: pointer;
   flex-shrink: 0;
   display: flex;
+  padding: 4px;
+  border-radius: 8px;
   transition:
     color 0.18s var(--ease-flb),
-    transform 0.18s var(--ease-flb);
+    transform 0.18s var(--ease-flb),
+    background 0.18s var(--ease-flb);
 }
 .mini-window-heart:hover {
-  transform: scale(1.12);
+  background: rgba(255, 255, 255, 0.06);
+  transform: scale(1.1);
+}
+.mini-window-heart:active {
+  transform: scale(0.9);
+}
+.mini-window-heart:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.mini-window-heart:disabled:hover {
+  background: none;
+  transform: none;
 }
 .mini-window-heart.active {
   color: #f87171;
 }
+.mini-window-heart.pop {
+  animation: mini-heart-pop 0.32s var(--ease-flb);
+}
+@keyframes mini-heart-pop {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.35);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.mini-window-heart:focus-visible {
+  outline: 2px solid var(--accentColor, var(--accent));
+  outline-offset: 2px;
+}
+
+/* ------------------------------ progress ------------------------------ */
 
 .mini-window-progress {
   height: 3px;
   border-radius: 2px;
   background: rgba(255, 255, 255, 0.08);
   overflow: hidden;
+  z-index: 1;
 }
 .mini-window-progress-fill {
+  position: relative;
   height: 100%;
-  background: linear-gradient(90deg, var(--accentColor, var(--accent)), var(--accent-2));
+  border-radius: 2px;
+  background: linear-gradient(
+    90deg,
+    var(--accentColor, var(--accent)),
+    var(--accent-2)
+  );
   transition: width 0.3s linear;
+}
+.mini-window-progress-fill::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  right: 0;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent-2);
+  transform: translate(50%, -50%);
+  box-shadow: 0 0 6px 1px var(--accent-2);
+  opacity: 0;
+  transition: opacity 0.18s var(--ease-flb);
+}
+.mini-window:hover .mini-window-progress-fill::after {
+  opacity: 0.9;
 }
 
 .mini-window-times {
   display: flex;
   justify-content: space-between;
   font-size: 9.5px;
+  font-variant-numeric: tabular-nums;
   color: var(--text-faint);
-  margin-top: -6px;
+  margin-top: -8px;
+  z-index: 1;
 }
+
+/* ------------------------------ controls ------------------------------ */
 
 .mini-window-controls {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 18px;
+  gap: 20px;
   margin-top: auto;
+  z-index: 1;
 }
 .mini-window-controls button {
   background: none;
@@ -667,17 +850,58 @@ button.user-chip.active {
   color: var(--text);
   transform: scale(1.1);
 }
+.mini-window-controls button:active {
+  transform: scale(0.92);
+}
+.mini-window-controls button:focus-visible {
+  outline: 2px solid var(--accentColor, var(--accent));
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
 .mini-window-play {
-  width: 34px;
-  height: 34px;
+  position: relative;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   background: var(--accentColor, var(--accent)) !important;
   color: #0a0c0f !important;
+  box-shadow: 0 4px 14px -4px var(--accentColor, var(--accent));
 }
 .mini-window-play:hover {
   transform: scale(1.06) !important;
 }
+.mini-window-play:active {
+  transform: scale(0.94) !important;
+}
+.mini-window-play.is-playing::before {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border-radius: 50%;
+  border: 1px solid var(--accentColor, var(--accent));
+  opacity: 0.5;
+  animation: mini-play-ring 1.8s ease-out infinite;
+}
+@keyframes mini-play-ring {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.5;
+  }
+  100% {
+    transform: scale(1.35);
+    opacity: 0;
+  }
+}
 
+@media (prefers-reduced-motion: reduce) {
+  .mini-window-art.is-playing .mini-window-art-bar,
+  .mini-window-title-mask.is-overflowing:hover .mini-window-title,
+  .mini-window-heart.pop,
+  .mini-window-play.is-playing::before {
+    animation: none !important;
+  }
+}
 /* ---- Remote control panel (Settings → "Controle Remoto") ---- */
 .remote-badge {
   display: inline-flex;
@@ -686,8 +910,13 @@ button.user-chip.active {
   font-size: 11px;
   font-weight: 700;
   color: var(--accentColor, var(--accent));
-  background: color-mix(in srgb, var(--accentColor, var(--accent)) 14%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accentColor, var(--accent)) 30%, transparent);
+  background: color-mix(
+    in srgb,
+    var(--accentColor, var(--accent)) 14%,
+    transparent
+  );
+  border: 1px solid
+    color-mix(in srgb, var(--accentColor, var(--accent)) 30%, transparent);
   border-radius: 999px;
   padding: 4px 10px;
 }
@@ -770,6 +999,87 @@ button.user-chip.active {
   background: rgba(248, 113, 113, 0.08);
 }
 .remote-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.remote-expiring {
+  color: #f59e0b;
+}
+
+.remote-clients {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-soft);
+}
+
+.remote-client-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.remote-client-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--panel-2, rgba(255, 255, 255, 0.03));
+  border: 1px solid var(--border-soft);
+}
+
+.remote-client-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accentColor, var(--accent));
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--accentColor, var(--accent)) 22%, transparent);
+  flex: none;
+}
+
+.remote-client-name {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-primary, #fff);
+}
+
+.remote-client-time {
+  font-size: 11px;
+  color: var(--text-faint);
+  margin-left: auto;
+}
+
+.remote-client-kick {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 1px solid var(--border-soft);
+  background: transparent;
+  color: var(--text-faint);
+  cursor: pointer;
+  flex: none;
+  transition:
+    color 0.15s,
+    border-color 0.15s,
+    background 0.15s;
+}
+.remote-client-kick:hover:not(:disabled) {
+  color: #f87171;
+  border-color: rgba(248, 113, 113, 0.45);
+  background: rgba(248, 113, 113, 0.08);
+}
+.remote-client-kick:disabled {
   opacity: 0.45;
   cursor: not-allowed;
 }

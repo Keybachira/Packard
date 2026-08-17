@@ -29,6 +29,16 @@ pub enum RemoteCommand {
     PlayerNext,
     #[serde(rename = "cmd.player.previous")]
     PlayerPrevious,
+    /// Replace the 10 EQ gains of the active device (V2).
+    #[serde(rename = "cmd.eq.set")]
+    EqSet { gains: Vec<f32> },
+    /// Apply a named preset (FLAT | CINEMA | MUSIC | GAME) to the active
+    /// device (V2).
+    #[serde(rename = "cmd.preset.apply")]
+    PresetApply { name: String },
+    /// Switch the active sound device (V2).
+    #[serde(rename = "cmd.device.set", rename_all = "camelCase")]
+    DeviceSet { device_id: String },
     #[serde(rename = "cmd.system.ping")]
     SystemPing,
     #[serde(rename = "cmd.state.request")]
@@ -54,6 +64,10 @@ pub enum RemoteEvent {
     StateMuted { value: bool },
     #[serde(rename = "state.playback")]
     StatePlayback { playback: RemotePlayback },
+    /// Live normalized spectrum bins (0.0..1.0) pushed ~7×/s while a remote is
+    /// connected, driving the phone's analyzer page (V2).
+    #[serde(rename = "state.analyzer")]
+    StateAnalyzer { bins: Vec<f32> },
     #[serde(rename = "event.paired", rename_all = "camelCase")]
     EventPaired { remote_id: String },
     #[serde(rename = "error")]
@@ -61,6 +75,12 @@ pub enum RemoteEvent {
     /// Tells every remote to drop the connection ("Desconectar todos").
     #[serde(rename = "system.disconnect")]
     SystemDisconnect,
+    /// Internal broadcast: every connection handler sees this, but only the
+    /// one whose `remote_id` matches actually disconnects (translated to
+    /// `system.disconnect` on the wire, so the JS client never has to know
+    /// about this variant — see `handle_socket`).
+    #[serde(rename = "system.kick", rename_all = "camelCase")]
+    KickClient { remote_id: String },
 }
 
 /// Minimal view of the currently active sound device, exposed to remotes.
@@ -84,7 +104,29 @@ pub struct RemotePlayback {
     pub duration_secs: f32,
 }
 
-/// Snapshot of everything a remote needs to render its single screen. The
+/// EQ state (10 peaking-band gains in dB) plus the active preset name, exposed
+/// so the phone can render its equalizer and preset chips.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteEq {
+    pub gains: Vec<f32>,
+    pub preset: String,
+    pub supports_eq: bool,
+}
+
+/// One entry in the remote's device switcher. `active` mirrors the device the
+/// snapshot is currently targeting.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RemoteDeviceInfo {
+    pub id: String,
+    pub name: String,
+    pub connection: String,
+    pub connected: bool,
+    pub active: bool,
+}
+
+/// Snapshot of everything a remote needs to render its screens. The
 /// `active_profile` field is `None` in the MVP (no profile source exists yet).
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -94,6 +136,8 @@ pub struct SoundCoreState {
     pub muted: bool,
     pub playback: RemotePlayback,
     pub active_profile: Option<String>,
+    pub eq: RemoteEq,
+    pub devices: Vec<RemoteDeviceInfo>,
 }
 
 #[cfg(test)]
@@ -147,11 +191,50 @@ mod tests {
                 duration_secs: 0.0,
             },
             active_profile: None,
+            eq: RemoteEq {
+                gains: vec![0.0; 10],
+                preset: "FLAT".into(),
+                supports_eq: true,
+            },
+            devices: vec![RemoteDeviceInfo {
+                id: "d1".into(),
+                name: "Demo".into(),
+                connection: "usb".into(),
+                connected: true,
+                active: true,
+            }],
         };
         let json = serde_json::to_value(RemoteEvent::StateSnapshot { state: st }).unwrap();
         assert_eq!(json["type"], "state.snapshot");
         assert_eq!(json["state"]["volume"], 50.0);
         assert_eq!(json["state"]["device"]["id"], "d1");
+        assert_eq!(json["state"]["eq"]["gains"].as_array().unwrap().len(), 10);
+        assert_eq!(json["state"]["devices"][0]["active"], true);
+    }
+
+    #[test]
+    fn v2_commands_round_trip() {
+        let eq: RemoteCommand =
+            serde_json::from_str(r#"{"type":"cmd.eq.set","gains":[1.0,2.0,3.0]}"#).unwrap();
+        assert!(matches!(eq, RemoteCommand::EqSet { ref gains } if gains.len() == 3));
+
+        let preset: RemoteCommand =
+            serde_json::from_str(r#"{"type":"cmd.preset.apply","name":"CINEMA"}"#).unwrap();
+        assert!(matches!(preset, RemoteCommand::PresetApply { ref name } if name == "CINEMA"));
+
+        let device: RemoteCommand =
+            serde_json::from_str(r#"{"type":"cmd.device.set","deviceId":"d2"}"#).unwrap();
+        assert!(matches!(device, RemoteCommand::DeviceSet { ref device_id } if device_id == "d2"));
+    }
+
+    #[test]
+    fn analyzer_event_serializes_bins() {
+        let json = serde_json::to_value(RemoteEvent::StateAnalyzer {
+            bins: vec![0.0, 0.5, 1.0],
+        })
+        .unwrap();
+        assert_eq!(json["type"], "state.analyzer");
+        assert_eq!(json["bins"].as_array().unwrap().len(), 3);
     }
 
     #[test]

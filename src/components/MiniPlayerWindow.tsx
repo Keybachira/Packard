@@ -1,6 +1,13 @@
-import { useMemo } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useApp } from "../context/AppStore";
-import { IconExpand, IconHeart, IconNext, IconPause, IconPlay, IconPrev } from "./icons";
+import {
+  IconExpand,
+  IconHeart,
+  IconNext,
+  IconPause,
+  IconPlay,
+  IconPrev,
+} from "./icons";
 import { formatTime } from "../lib/format";
 
 /**
@@ -10,7 +17,15 @@ import { formatTime } from "../lib/format";
  * fills that tiny window with just the essentials.
  */
 export default function MiniPlayerWindow() {
-  const { playback, library, togglePause, next, previous, favorite, toggleMiniMode } = useApp();
+  const {
+    playback,
+    library,
+    togglePause,
+    next,
+    previous,
+    favorite,
+    toggleMiniMode,
+  } = useApp();
 
   const current = useMemo(
     () => library.find((t) => t.id === playback.trackId) ?? null,
@@ -20,6 +35,29 @@ export default function MiniPlayerWindow() {
   const duration = current?.durationSecs ?? 0;
   const position = playback.positionSecs;
   const pct = duration > 0 ? Math.min(100, (position / duration) * 100) : 0;
+
+  const titleMaskRef = useRef<HTMLDivElement>(null);
+  const titleRef = useRef<HTMLSpanElement>(null);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+
+  useLayoutEffect(() => {
+    const mask = titleMaskRef.current;
+    const title = titleRef.current;
+    if (!mask || !title) return;
+    setIsOverflowing(title.scrollWidth > mask.clientWidth + 1);
+  }, [current?.title]);
+
+  const [heartPop, setHeartPop] = useState(false);
+  const handleFavorite = () => {
+    if (!current) return;
+    favorite(current.id);
+    setHeartPop(true);
+  };
+  useEffect(() => {
+    if (!heartPop) return;
+    const t = setTimeout(() => setHeartPop(false), 320);
+    return () => clearTimeout(t);
+  }, [heartPop]);
 
   return (
     <div className="mini-window" data-tauri-drag-region>
@@ -32,24 +70,48 @@ export default function MiniPlayerWindow() {
       </button>
 
       <div className="mini-window-row" data-tauri-drag-region>
-        <div className="mini-window-art">
-          <span>♫</span>
+        <div
+          className={`mini-window-art ${playback.playing ? "is-playing" : ""}`}
+        >
+          <span className="mini-window-art-bar" />
+          <span className="mini-window-art-bar" />
+          <span className="mini-window-art-bar" />
+          <span className="mini-window-art-bar" />
         </div>
         <div className="mini-window-meta">
-          <div className="mini-window-title">{current?.title ?? "Nada tocando"}</div>
-          <div className="mini-window-artist">{current?.artist ?? "SoundCore"}</div>
+          <div
+            ref={titleMaskRef}
+            className={`mini-window-title-mask ${isOverflowing ? "is-overflowing" : ""}`}
+          >
+            <span ref={titleRef} className="mini-window-title">
+              {current?.title ?? "Nada tocando"}
+              {isOverflowing && (
+                <>
+                  <span className="mini-window-title-gap" />
+                  {current?.title}
+                </>
+              )}
+            </span>
+          </div>
+          <div className="mini-window-artist">
+            {current?.artist ?? "SoundCore"}
+          </div>
         </div>
         <button
-          className={`mini-window-heart ${current?.favorite ? "active" : ""}`}
-          onClick={() => current && favorite(current.id)}
+          className={`mini-window-heart ${current?.favorite ? "active" : ""} ${heartPop ? "pop" : ""}`}
+          onClick={handleFavorite}
           disabled={!current}
+          title="Favoritar"
         >
           <IconHeart size={14} />
         </button>
       </div>
 
       <div className="mini-window-progress">
-        <div className="mini-window-progress-fill" style={{ width: `${pct}%` }} />
+        <div
+          className="mini-window-progress-fill"
+          style={{ width: `${pct}%` }}
+        />
       </div>
       <div className="mini-window-times">
         <span>{formatTime(position)}</span>
@@ -60,7 +122,11 @@ export default function MiniPlayerWindow() {
         <button onClick={previous} title="Anterior">
           <IconPrev size={15} />
         </button>
-        <button className="mini-window-play" onClick={togglePause} title="Reproduzir/Pausar">
+        <button
+          className={`mini-window-play ${playback.playing ? "is-playing" : ""}`}
+          onClick={togglePause}
+          title="Reproduzir/Pausar"
+        >
           {playback.playing ? <IconPause size={18} /> : <IconPlay size={18} />}
         </button>
         <button onClick={next} title="Próxima">

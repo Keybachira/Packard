@@ -20,9 +20,9 @@ const WAVE_FORMAT_EXTENSIBLE: u16 = 0xFFFE;
 
 /// KSDATAFORMAT_SUBTYPE_* GUIDs (MediaTypes.h).
 const SUBTYPE_PCM: windows::core::GUID =
-    windows::core::GUID::from_u128(0x0000_0001_0000_0010_8000_00aa00389b71);
+    windows::core::GUID::from_u128(0x0000_0001_0000_0010_8000_00aa_0038_9b71);
 const SUBTYPE_IEEE_FLOAT: windows::core::GUID =
-    windows::core::GUID::from_u128(0x0000_0003_0000_0010_8000_00aa00389b71);
+    windows::core::GUID::from_u128(0x0000_0003_0000_0010_8000_00aa_0038_9b71);
 
 /// Keeps a WASAPI loopback capture thread running for the app's lifetime,
 /// feeding a shared `AudioTap` so the realtime analyzer reflects whatever the
@@ -145,7 +145,7 @@ fn read_loopback_format(client: &IAudioClient) -> windows::core::Result<Loopback
         }
     }
 
-    let bytes_per_sample = if is_float { 4 } else { ((bits as usize) + 7) / 8 };
+    let bytes_per_sample = if is_float { 4 } else { (bits as usize).div_ceil(8) };
     if channels == 0 || block_align == 0 || bytes_per_sample == 0 {
         unsafe { CoTaskMemFree(Some(format as *const _)) };
         return Err(windows::core::Error::empty());

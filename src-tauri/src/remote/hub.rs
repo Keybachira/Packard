@@ -1,20 +1,29 @@
 use crate::remote::protocol::RemoteEvent;
 use crate::remote::session::{Session, MAX_REMOTES};
 use std::sync::{Arc, Mutex};
+use std::time::SystemTime;
 use tokio::sync::broadcast;
+
+/// A single paired remote connection, tracked so the desktop UI can list and
+/// individually disconnect connected phones.
+#[derive(Debug, Clone)]
+pub struct RemoteClient {
+    pub id: String,
+    pub connected_at: SystemTime,
+}
 
 /// Shared state connecting the desktop's mutating commands to every connected
 /// mobile remote:
 ///
 /// - `session`: the current pairing token + TTL.
-/// - `clients`: ids of connected remotes (capped at `MAX_REMOTES`).
+/// - `clients`: connected remotes (capped at `MAX_REMOTES`).
 /// - `tx`: a `broadcast` channel the server sends `RemoteEvent`s through.
 ///
 /// Held in `AppState` as `Arc<RemoteHub>` so the Tauri commands and the axum
 /// WS tasks write through the exact same path.
 pub struct RemoteHub {
     session: Mutex<Session>,
-    clients: Mutex<Vec<String>>,
+    clients: Mutex<Vec<RemoteClient>>,
     tx: broadcast::Sender<RemoteEvent>,
     port: Mutex<Option<u16>>,
 }
@@ -54,6 +63,15 @@ impl RemoteHub {
         let _ = self.regenerate();
     }
 
+    /// Kick a single connected remote by id, leaving the session and every
+    /// other connection untouched. The actual socket task removes itself
+    /// from `clients` once it sees the matching `KickClient` event.
+    pub fn disconnect_client(&self, id: &str) {
+        let _ = self.tx.send(RemoteEvent::KickClient {
+            remote_id: id.to_string(),
+        });
+    }
+
     pub fn add_client(&self, id: &str) -> Result<(), String> {
         let mut clients = self
             .clients
@@ -62,21 +80,23 @@ impl RemoteHub {
         if clients.len() >= MAX_REMOTES {
             return Err(format!("máximo de {MAX_REMOTES} remotes conectados"));
         }
-        clients.push(id.to_string());
+        clients.push(RemoteClient {
+            id: id.to_string(),
+            connected_at: SystemTime::now(),
+        });
         Ok(())
     }
 
     pub fn remove_client(&self, id: &str) {
         if let Ok(mut clients) = self.clients.lock() {
-            clients.retain(|c| c != id);
+            clients.retain(|c| c.id != id);
         }
     }
 
-    pub fn connected_ids(&self) -> Vec<String> {
-        self.clients
-            .lock()
-            .map(|c| c.clone())
-            .unwrap_or_default()
+    /// Full client list (id + join time), oldest first, for the desktop's
+    /// "connected remotes" list.
+    pub fn clients(&self) -> Vec<RemoteClient> {
+        self.clients.lock().map(|c| c.clone()).unwrap_or_default()
     }
 
     pub fn max_remotes(&self) -> usize {
@@ -135,12 +155,33 @@ mod tests {
     }
 
     #[test]
+    fn clients_lists_ids_in_join_order() {
+        let hub = RemoteHub::new();
+        hub.add_client("c1").unwrap();
+        hub.add_client("c2").unwrap();
+        let ids: Vec<String> = hub.clients().into_iter().map(|c| c.id).collect();
+        assert_eq!(ids, vec!["c1".to_string(), "c2".to_string()]);
+    }
+
+    #[test]
+    fn disconnect_client_targets_only_that_id() {
+        let hub = RemoteHub::new();
+        let mut rx = hub.subscribe();
+        hub.disconnect_client("c1");
+        let received = rx.try_recv().unwrap();
+        assert!(matches!(
+            received,
+            RemoteEvent::KickClient { remote_id } if remote_id == "c1"
+        ));
+    }
+
+    #[test]
     fn regenerate_clears_clients_and_rotates_token() {
         let hub = RemoteHub::new();
         let old = hub.session().token;
         hub.add_client("c1").unwrap();
         let fresh = hub.regenerate();
         assert_ne!(fresh.token, old);
-        assert!(hub.connected_ids().is_empty());
+        assert!(hub.clients().is_empty());
     }
 }

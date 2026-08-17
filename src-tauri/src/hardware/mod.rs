@@ -6,10 +6,15 @@ use serde::{Deserialize, Serialize};
 
 /// How a device is physically connected to the machine.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
+#[serde(rename_all = "snake_case")]
 pub enum ConnectionType {
     Usb,
     Bluetooth,
+    Hdmi,
+    Dac,
+    Headphones,
+    Microphone,
+    AudioInterface,
     None,
 }
 
@@ -18,6 +23,11 @@ impl std::fmt::Display for ConnectionType {
         match self {
             ConnectionType::Usb => write!(f, "usb"),
             ConnectionType::Bluetooth => write!(f, "bluetooth"),
+            ConnectionType::Hdmi => write!(f, "hdmi"),
+            ConnectionType::Dac => write!(f, "dac"),
+            ConnectionType::Headphones => write!(f, "headphones"),
+            ConnectionType::Microphone => write!(f, "microphone"),
+            ConnectionType::AudioInterface => write!(f, "audio_interface"),
             ConnectionType::None => write!(f, "none"),
         }
     }

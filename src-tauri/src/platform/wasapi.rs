@@ -3,7 +3,7 @@ use windows::core::PWSTR;
 use windows::Win32::Devices::FunctionDiscovery::PKEY_Device_FriendlyName;
 use windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume;
 use windows::Win32::Media::Audio::{
-    eConsole, eRender, EDataFlow, IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator,
+    eCapture, eRender, EDataFlow, IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator,
     DEVICE_STATE_ACTIVE,
 };
 use windows::Win32::System::Com::StructuredStorage::PropVariantToStringAlloc;
@@ -43,6 +43,24 @@ fn guess_connection(name: &str) -> ConnectionType {
     let lower = name.to_lowercase();
     if lower.contains("bluetooth") || lower.contains("hands-free") {
         ConnectionType::Bluetooth
+    } else if lower.contains("hdmi") {
+        ConnectionType::Hdmi
+    } else if lower.contains("dac") {
+        ConnectionType::Dac
+    } else if lower.contains("headphone")
+        || lower.contains("headset")
+        || lower.contains("earbud")
+        || lower.contains("headphones")
+    {
+        ConnectionType::Headphones
+    } else if lower.contains("microphone")
+        || lower.contains("mic array")
+        || lower.contains("audio array")
+        || lower.contains("mic ")
+    {
+        ConnectionType::Microphone
+    } else if lower.contains("interface") {
+        ConnectionType::AudioInterface
     } else {
         ConnectionType::Usb
     }
@@ -90,19 +108,25 @@ impl Wasapi {
     /// DACs, Bluetooth headsets, HDMI...). Each entry reflects the device's
     /// live volume/mute state.
     pub fn enumerate_render_endpoints(&self) -> Vec<AudioDevice> {
+        self.enumerate_endpoints(eRender)
+    }
+
+    /// Enumerate active audio capture endpoints (microphones, mic arrays,
+    /// audio interfaces with an input path). Each entry reflects the device's
+    /// live volume/mute state; capture endpoints don't carry EQ.
+    pub fn enumerate_capture_endpoints(&self) -> Vec<AudioDevice> {
+        self.enumerate_endpoints(eCapture)
+    }
+
+    /// Enumerate all active endpoints of a given data-flow (render or
+    /// capture), reading each device's friendly name, volume and mute state
+    /// and classifying the connection from the name.
+    fn enumerate_endpoints(&self, flow: EDataFlow) -> Vec<AudioDevice> {
         let Ok(enumerator) = Self::enumerator() else {
             return Vec::new();
         };
 
-        let default_id = unsafe {
-            enumerator
-                .GetDefaultAudioEndpoint(eRender, eConsole)
-                .ok()
-                .and_then(|d| d.GetId().ok())
-                .map(pwstr_to_string)
-        };
-
-        let Ok(collection) = (unsafe { enumerator.EnumAudioEndpoints(eRender, DEVICE_STATE_ACTIVE) })
+        let Ok(collection) = (unsafe { enumerator.EnumAudioEndpoints(flow, DEVICE_STATE_ACTIVE) })
         else {
             return Vec::new();
         };
@@ -119,14 +143,7 @@ impl Wasapi {
             let id = pwstr_to_string(id_pwstr);
             let name = Self::friendly_name(&device);
             let (volume, muted) = Self::read_endpoint_volume(&device).unwrap_or((0.72, false));
-            let is_default = default_id.as_deref() == Some(id.as_str());
-
-            let mut connection = guess_connection(&name);
-            if is_default && connection == ConnectionType::Usb {
-                // Keep the heuristic but nudge nothing else; default flag is
-                // carried separately by the frontend via id match if needed.
-                connection = ConnectionType::Usb;
-            }
+            let connection = guess_connection(&name);
 
             devices.push(AudioDevice {
                 id,
@@ -135,7 +152,7 @@ impl Wasapi {
                 connected: true,
                 volume: (volume * 100.0).round(),
                 muted,
-                supports_eq: true,
+                supports_eq: flow == eRender,
             });
         }
 

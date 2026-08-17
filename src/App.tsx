@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import "@fontsource/roboto/100.css";
 import "@fontsource/roboto/300.css";
 import "@fontsource/roboto/400.css";
@@ -33,12 +34,21 @@ import SettingsPage from "./pages/SettingsPage";
 
 function ThemeApplier() {
   const { appSettings } = useApp();
-  const light = appSettings.theme === "light";
-  document.documentElement.className = light ? "light" : "";
-  document.documentElement.style.setProperty(
-    "--accentColor",
-    appSettings.accent || "#22c55e",
-  );
+  // Mutating <html> directly in the render body (instead of an effect) ran
+  // on every re-render of the app — including the playback/queue poll every
+  // 800ms — forcing a full-page style recalculation each time even when
+  // neither the theme nor the accent color had actually changed. That's what
+  // read as a faint, constant flicker across every card/panel in the app.
+  // Scoping it to an effect keyed on the two values that matter means it
+  // only touches the DOM when the theme or accent color really changes.
+  useEffect(() => {
+    const light = appSettings.theme === "light";
+    document.documentElement.className = light ? "light" : "";
+    document.documentElement.style.setProperty(
+      "--accentColor",
+      appSettings.accent || "#22c55e",
+    );
+  }, [appSettings.theme, appSettings.accent]);
   return null;
 }
 

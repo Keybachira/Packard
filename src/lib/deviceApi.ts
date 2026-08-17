@@ -202,3 +202,7 @@ export async function regenerateRemoteSession(): Promise<RemoteState> {
 export async function disconnectAllRemotes(): Promise<RemoteState> {
   return invoke<RemoteState>("disconnect_all_remotes");
 }
+
+export async function disconnectRemote(remoteId: string): Promise<RemoteState> {
+  return invoke<RemoteState>("disconnect_remote", { remoteId });
+}

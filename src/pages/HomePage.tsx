@@ -6,7 +6,6 @@ import EqBand from "../components/EqBand";
 import {
   IconArrowRight,
   IconBell,
-  IconBluetooth,
   IconGauge,
   IconHeadphones,
   IconMic,
@@ -15,8 +14,9 @@ import {
   IconPulse,
   IconSliders,
   IconSpeaker,
-  IconUsb,
   IconWaves,
+  iconForConnection,
+  connectionLabel,
 } from "../components/icons";
 import { getSpectrum } from "../lib/deviceApi";
 
@@ -107,7 +107,7 @@ export default function HomePage() {
           <div className="status-row">
             <span className="status-dot" />
             {selected?.connected ? "Conectado" : "Desconectado"}
-            {selected && ` · ${selected.connection === "usb" ? "USB" : "Bluetooth"}`}
+            {selected && ` · ${connectionLabel(selected.connection)}`}
           </div>
           <div className="bezel">
             <div className="device-img bezel-core">
@@ -400,7 +400,7 @@ export default function HomePage() {
               style={{ cursor: "pointer" }}
             >
               <div className={`dev-icon ${d.id === selectedId ? "on" : ""}`}>
-                {d.connection === "usb" ? <IconUsb size={18} /> : <IconBluetooth size={18} />}
+                {iconForConnection(d.connection, { size: 18 })}
               </div>
               <div className="dev-info">
                 <div className="n">{d.name}</div>

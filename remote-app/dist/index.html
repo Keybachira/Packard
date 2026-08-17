@@ -91,7 +91,64 @@
           </div>
         </div>
       </section>
+
+      <!-- Equalizer + presets -->
+      <section id="eqView" class="panel-view hidden">
+        <div class="panel-head">
+          <h2 class="panel-title">Equalizador</h2>
+          <p class="panel-sub">10 faixas · toque e arraste para ajustar</p>
+        </div>
+        <p id="eqUnsupported" class="panel-note hidden">Este dispositivo não oferece equalizador.</p>
+        <div class="preset-chips" id="presetChips">
+          <button class="chip" data-preset="FLAT">Flat</button>
+          <button class="chip" data-preset="CINEMA">Cinema</button>
+          <button class="chip" data-preset="MUSIC">Música</button>
+          <button class="chip" data-preset="GAME">Game</button>
+        </div>
+        <div class="eq-bands" id="eqBands"></div>
+      </section>
+
+      <!-- Device switcher -->
+      <section id="devicesView" class="panel-view hidden">
+        <div class="panel-head">
+          <h2 class="panel-title">Dispositivos</h2>
+          <p class="panel-sub">Escolha qual dispositivo está ativo</p>
+        </div>
+        <div class="device-list" id="deviceList"></div>
+      </section>
+
+      <!-- Live analyzer -->
+      <section id="analyzerView" class="panel-view hidden">
+        <div class="panel-head">
+          <h2 class="panel-title">Analisador</h2>
+          <p class="panel-sub">Espectro ao vivo do som do computador</p>
+        </div>
+        <div class="analyzer-box">
+          <canvas id="analyzerCanvas"></canvas>
+          <p class="analyzer-idle" id="analyzerIdle">Sem áudio tocando</p>
+        </div>
+      </section>
     </main>
+
+    <!-- Bottom tab bar, only visible once paired -->
+    <nav id="tabs" class="tabs hidden">
+      <button class="tab" data-tab="player" aria-label="Player">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5.5v13l11-6.5-11-6.5z"/></svg>
+        <span>Player</span>
+      </button>
+      <button class="tab" data-tab="eq" aria-label="Equalizador">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2.2" fill="var(--bg)"/><circle cx="15" cy="12" r="2.2" fill="var(--bg)"/><circle cx="7" cy="18" r="2.2" fill="var(--bg)"/></svg>
+        <span>EQ</span>
+      </button>
+      <button class="tab" data-tab="devices" aria-label="Dispositivos">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="14" rx="2.5"/><path d="M9 21h6M12 17v4"/></svg>
+        <span>Som</span>
+      </button>
+      <button class="tab" data-tab="analyzer" aria-label="Analisador">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><rect x="4" y="13" width="3.2" height="7" rx="1"/><rect x="10.4" y="8" width="3.2" height="12" rx="1"/><rect x="16.8" y="4" width="3.2" height="16" rx="1"/></svg>
+        <span>Analisador</span>
+      </button>
+    </nav>
 
     <footer class="foot">
       <span id="footNote">Controle remoto local · mesma rede Wi-Fi</span>

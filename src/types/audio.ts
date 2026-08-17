@@ -1,4 +1,12 @@
-export type ConnectionType = "usb" | "bluetooth" | "none";
+export type ConnectionType =
+  | "usb"
+  | "bluetooth"
+  | "hdmi"
+  | "dac"
+  | "headphones"
+  | "microphone"
+  | "audio_interface"
+  | "none";
 
 export interface AudioDevice {
   id: string;
@@ -150,6 +158,12 @@ export interface ToastItem {
 
 // --- Remote control ----------------------------------------------------
 
+/// Mirrors `RemoteClientView` in `src-tauri/src/lib.rs`.
+export interface RemoteClientInfo {
+  id: string;
+  connectedSecs: number;
+}
+
 /// Mirrors `RemoteStateView` in `src-tauri/src/remote/hub.rs` (via `lib.rs`).
 export interface RemoteState {
   ready: boolean;
@@ -160,6 +174,7 @@ export interface RemoteState {
   sessionExpiresIn: number;
   connectedCount: number;
   maxRemotes: number;
+  clients: RemoteClientInfo[];
 }
 
 // --- Constants -------------------------------------------------------------

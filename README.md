@@ -6,6 +6,8 @@
 
 O objetivo é transformar o computador em um verdadeiro **Audio Control Center**, unindo uma interface moderna com um núcleo nativo de alto desempenho.
 
+**Estado atual:** player de música, equalizador de 10 bandas com presets, troca de dispositivo, analisador em tempo real e **controle remoto via celular** (PWA na mesma rede) já estão implementados e funcionais.
+
 ---
 
 ## Visão
@@ -41,6 +43,43 @@ Ele foi projetado para centralizar toda a experiência de áudio do computador:
                            ▼
                      AUDIO DEVICE
 ```
+
+---
+
+# Remote Control (MVP — implementado)
+
+O SoundCore expõe um **controle remoto via celular** na mesma rede local. O app desktop sobe um servidor HTTP + WebSocket (axum), exibe um **QR Code** que aponte o celular para a PWA em `remote-app/dist`, e envia snapshots de estado em tempo real.
+
+Acesso:
+
+```text
+SoundCore (desktop)
+    ↓ gera QR Code (URL local + token)
+Servidor local (HTTP + WebSocket, porta 38741–38751)
+    ↓
+Celular na mesma LAN
+    ↓ abre a PWA (remote-app/dist)
+Controle total: player, volume, EQ, dispositivos, analisador
+```
+
+## Abas do controle remoto
+
+| Aba          | Funcionalidades                                              |
+| ------------ | ------------------------------------------------------------ |
+| Player       | Play/pause, anterior/próxima, progresso, volume, mute        |
+| Equalizador  | 10 bandas (32 Hz–16 kHz, −12..+12 dB) e presets              |
+| Dispositivos | Lista dispositivos e alterna o ativo (exclusivo)             |
+| Analisador   | Espectro ao vivo de 48 bandas (verde→azul), feed por WebSocket |
+
+## Protocolo (WebSocket, JSON)
+
+* Comandos: `cmd.player.play/pause/next/previous`, `cmd.volume.set/mute/unmute`, `cmd.eq.set` `{ gains }`, `cmd.preset.apply` `{ name }`, `cmd.device.set` `{ deviceId }`, `cmd.system.ping`, `cmd.state.request`
+* Eventos: `event.paired`, `state.snapshot`, `state.playback`, `state.volume`, `state.muted`, `state.analyzer` `{ bins }`, `system.disconnect`, `error`
+* Presets de EQ: `FLAT`, `CINEMA`, `MUSIC`, `GAME`
+* `state.analyzer` emite 48 bins (0..1) a cada ~150 ms, apenas com clientes conectados
+* Snapshot inclui `eq { gains, preset, supportsEq }` e `devices [{ id, name, connection, connected, active }]`
+
+A definição completa vive em `src-tauri/src/remote/protocol.rs`.
 
 ---
 
@@ -131,9 +170,9 @@ Também será possível adicionar uma música reconhecida diretamente à bibliot
 
 O centro de processamento e personalização de áudio.
 
-## Equalizador
+## Equalizador (implementado)
 
-Equalizador paramétrico/gráfico com múltiplas bandas.
+Equalizador gráfico de **10 bandas** (32 Hz–16 kHz, faixa −12..+12 dB) com presets, disponível tanto no desktop quanto no controle remoto via celular.
 
 ```text
 32Hz
@@ -148,7 +187,14 @@ Equalizador paramétrico/gráfico com múltiplas bandas.
 16KHz
 ```
 
-Controles:
+Presets disponíveis:
+
+* FLAT
+* CINEMA
+* MUSIC
+* GAME
+
+Controles planejados:
 
 * Gain
 * Preamp
@@ -184,7 +230,7 @@ Visualização do áudio em tempo real.
 
 ### Modos
 
-* Spectrum
+* Spectrum (implementado — 48 bandas no desktop e no controle remoto)
 * Waveform
 * Frequency Analyzer
 * Peak Meter
@@ -261,6 +307,8 @@ Stereo Balance
 
 Gerenciamento dos dispositivos de áudio conectados ao computador.
 
+**Implementado:** enumeração de dispositivos (USB/Bluetooth), lista com estado de conexão e **troca de dispositivo ativo** — disponível tanto no desktop quanto no controle remoto via celular.
+
 Suporte planejado:
 
 * Soundbars
@@ -270,8 +318,6 @@ Suporte planejado:
 * Interfaces de áudio
 * Microfones
 * Placas de som
-* Dispositivos USB
-* Dispositivos Bluetooth
 * Dispositivos compatíveis com APIs do fabricante
 
 Exemplo:
@@ -435,7 +481,7 @@ O verde representa o sinal de áudio e será utilizado principalmente em:
 
 # Navegação
 
-A aplicação será organizada da seguinte forma:
+A aplicação está organizada da seguinte forma:
 
 ```text
 Packard SoundCore
@@ -443,15 +489,17 @@ Packard SoundCore
 ├──  Dashboard
 ├──  Player
 ├──  Biblioteca
-├──  Reconhecimento
 ├──  Audio Lab
 ├──  Dispositivos
-├──  Perfis
 ├──  Analisador
+├──  Perfis
+├──  Perfis de App
+├──  Calibração
+├──  Controle Remoto
 └──  Configurações
 ```
 
-O **Music Player** poderá permanecer disponível globalmente através de um player persistente na parte inferior da aplicação.
+O **Music Player** permanece disponível globalmente através de um player persistente na parte inferior da aplicação.
 
 ---
 
@@ -502,19 +550,14 @@ O frontend é responsável pela interface e experiência do utilizador.
 * React
 * TypeScript
 * Vite
-* React Router
-* Zustand
-* Framer Motion
-* Lucide React
-* CSS / Tailwind CSS
-* Recharts
-* WaveSurfer.js
+* Tailwind CSS
+* Fontsource (Manrope, Roboto, Space Grotesk)
 
 ---
 
 # Backend / Native Core
 
-O núcleo da aplicação será desenvolvido em Rust.
+O núcleo da aplicação é desenvolvido em Rust.
 
 Responsabilidades:
 
@@ -523,13 +566,13 @@ Responsabilidades:
 * Audio Engine
 * DSP
 * Equalização
-* Processamento
 * Análise
 * Configurações
 * Persistência
 * Comunicação USB
 * Bluetooth
 * Comandos Tauri
+* Servidor local de controle remoto (HTTP + WebSocket)
 
 ---
 
@@ -587,72 +630,72 @@ packard-soundcore/
 │
 ├── src/
 │   │
-│   ├── app/
-│   │   ├── App.tsx
-│   │   ├── router.tsx
-│   │   └── providers/
-│   │
 │   ├── components/
-│   │   ├── ui/
-│   │   ├── audio/
-│   │   ├── player/
-│   │   └── devices/
+│   │   ├── DeviceManager.tsx
+│   │   ├── Equalizer.tsx
+│   │   ├── EqBand.tsx
+│   │   ├── PlayerBar.tsx
+│   │   ├── RemoteControlPanel.tsx
+│   │   ├── SpectrumAnalyzer.tsx
+│   │   ├── Sidebar.tsx
+│   │   ├── Topbar.tsx
+│   │   └── ...
 │   │
-│   ├── features/
-│   │   ├── dashboard/
-│   │   ├── player/
-│   │   ├── library/
-│   │   ├── recognition/
-│   │   ├── audio-lab/
-│   │   ├── devices/
-│   │   ├── profiles/
-│   │   └── settings/
-│   │
-│   ├── hooks/
-│   │
-│   ├── stores/
-│   │   ├── player.store.ts
-│   │   ├── audio.store.ts
-│   │   ├── device.store.ts
-│   │   ├── profile.store.ts
-│   │   ├── library.store.ts
-│   │   └── settings.store.ts
+│   ├── pages/
+│   │   ├── HomePage.tsx
+│   │   ├── PlayerPage.tsx
+│   │   ├── LibraryPage.tsx
+│   │   ├── AudioLabPage.tsx
+│   │   ├── AnalyzerPage.tsx
+│   │   ├── DevicesPage.tsx
+│   │   ├── RemotePage.tsx
+│   │   ├── ProfilesPage.tsx
+│   │   ├── AppProfilesPage.tsx
+│   │   ├── CalibrationPage.tsx
+│   │   └── SettingsPage.tsx
 │   │
 │   ├── lib/
 │   ├── types/
-│   ├── assets/
-│   ├── main.tsx
-│   └── index.css
+│   ├── context/
+│   ├── styles/
+│   ├── App.tsx
+│   └── main.tsx
 │
 ├── src-tauri/
 │   │
 │   ├── src/
 │   │   ├── audio/
 │   │   │   ├── mod.rs
-│   │   │   ├── engine.rs
 │   │   │   ├── equalizer.rs
-│   │   │   ├── analyzer.rs
-│   │   │   └── profiles.rs
+│   │   │   ├── compressor.rs
+│   │   │   └── limiter.rs
 │   │   │
-│   │   ├── devices/
+│   │   ├── hardware/
 │   │   │   ├── mod.rs
-│   │   │   ├── detector.rs
+│   │   │   ├── devices.rs
 │   │   │   ├── usb.rs
 │   │   │   └── bluetooth.rs
 │   │   │
-│   │   ├── commands/
-│   │   │   ├── audio.rs
-│   │   │   ├── devices.rs
-│   │   │   ├── player.rs
-│   │   │   └── settings.rs
+│   │   ├── platform/
 │   │   │
-│   │   ├── storage/
-│   │   └── main.rs
+│   │   ├── remote/
+│   │   │   ├── mod.rs
+│   │   │   ├── protocol.rs
+│   │   │   ├── server.rs
+│   │   │   ├── hub.rs
+│   │   │   ├── session.rs
+│   │   │   ├── snapshot.rs
+│   │   │   └── lanip.rs
+│   │   │
+│   │   └── lib.rs
 │   │
 │   ├── capabilities/
 │   └── Cargo.toml
 │
-├── public/
+├── remote-app/
+│   └── dist/                    # PWA do controle remoto (HTML/CSS/JS puro)
+│
+├── docs/
 ├── package.json
 ├── vite.config.ts
 ├── tsconfig.json
@@ -670,12 +713,12 @@ packard-soundcore/
 | Linguagem           | TypeScript                    |
 | Build               | Vite                          |
 | Core                | Rust                          |
-| State               | Zustand                       |
-| Router              | React Router                  |
-| Animações           | Framer Motion                 |
-| Icons               | Lucide React                  |
-| Gráficos            | Recharts / Canvas             |
-| Audio Visualization | WaveSurfer.js                 |
+| Estilo              | Tailwind CSS 4                |
+| Áudio               | cpal / rodio / rustfft        |
+| Metadados           | lofty                         |
+| Windows API         | windows-rs (WASAPI)           |
+| Remote Control      | axum / tokio / WebSocket      |
+| QR Code             | qrcode (SVG)                  |
 | Database            | SQLite                        |
 | Audio API           | WASAPI / Windows APIs         |
 | Hardware            | USB / Bluetooth / Native APIs |
@@ -723,14 +766,16 @@ npm install
 Iniciar o frontend:
 
 ```bash
-bun run dev
+npm run dev
 ```
 
 Iniciar o aplicativo Tauri:
 
 ```bash
-bun run tauri dev
+npm run tauri dev
 ```
+
+O **controle remoto** abre no celular: gere o QR Code na página *Controle Remoto* do app desktop e escaneie com o celular (mesma rede). A PWA fica em `remote-app/dist`, servida pelo próprio app.
 
 ---
 
@@ -739,7 +784,7 @@ bun run tauri dev
 Criar a aplicação de produção:
 
 ```bash
-bun run tauri build
+npm run tauri build
 ```
 
 O Tauri irá gerar os artefatos de distribuição para Windows.
@@ -847,35 +892,35 @@ Isso facilita manutenção e evolução.
 
 ## Phase 01 — Foundation
 
-* [ ] Configurar Tauri
-* [ ] Configurar React + TypeScript
-* [ ] Criar Design System
-* [ ] Criar Sidebar
-* [ ] Criar Router
-* [ ] Criar Dashboard
-* [ ] Criar sistema de temas
-* [ ] Criar stores
-* [ ] Criar camada de Tauri Commands
+* [x] Configurar Tauri
+* [x] Configurar React + TypeScript
+* [x] Criar Design System
+* [x] Criar Sidebar
+* [x] Criar Router
+* [x] Criar Dashboard
+* [x] Criar sistema de temas
+* [x] Criar stores
+* [x] Criar camada de Tauri Commands
 
 ---
 
 ## Phase 02 — Device Engine
 
-* [ ] Detectar dispositivos de áudio
-* [ ] Listar dispositivos
-* [ ] Detectar dispositivo padrão
-* [ ] Ler informações do dispositivo
-* [ ] Controle de volume
-* [ ] Mute
-* [ ] Device switching
+* [x] Detectar dispositivos de áudio
+* [x] Listar dispositivos
+* [x] Detectar dispositivo padrão
+* [x] Ler informações do dispositivo
+* [x] Controle de volume
+* [x] Mute
+* [x] Device switching
 * [ ] Device monitoring
 
 ---
 
 ## Phase 03 — Music Player
 
-* [ ] Player
-* [ ] Biblioteca
+* [x] Player
+* [x] Biblioteca
 * [ ] Playlists
 * [ ] Fila
 * [ ] Histórico
@@ -888,22 +933,22 @@ Isso facilita manutenção e evolução.
 
 ## Phase 04 — Audio Lab
 
-* [ ] Equalizador
+* [x] Equalizador (10 bandas)
 * [ ] Preamp
-* [ ] Bass
-* [ ] Treble
+* [x] Bass
+* [x] Treble
 * [ ] Compressor
 * [ ] Limiter
 * [ ] Loudness
 * [ ] Spatial Audio
 * [ ] Stereo Width
-* [ ] Presets
+* [x] Presets (FLAT/CINEMA/MUSIC/GAME)
 
 ---
 
 ## Phase 05 — Analyzer
 
-* [ ] Spectrum
+* [x] Spectrum (48 bandas, desktop + remote)
 * [ ] Waveform
 * [ ] Peak Meter
 * [ ] RMS

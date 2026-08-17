@@ -1,5 +1,5 @@
 import type { AudioDevice } from "../types/audio";
-import { IconBluetooth, IconUsb } from "./icons";
+import { iconForConnection } from "./icons";
 
 interface Props {
   devices: AudioDevice[];
@@ -34,8 +34,8 @@ export default function DeviceManager({
             textAlign: "center",
           }}
         >
-          Nenhum dispositivo encontrado. Conecte uma soundbar via USB ou
-          Bluetooth.
+          Nenhum dispositivo encontrado. Conecte uma soundbar, fone ou
+          microfone para começar.
         </p>
       )}
       {devices.map((device) => (
@@ -46,11 +46,7 @@ export default function DeviceManager({
           style={{ cursor: disabled ? "default" : "pointer" }}
         >
           <div className={`dev-icon ${device.id === selectedId ? "on" : ""}`}>
-            {device.connection === "usb" ? (
-              <IconUsb size={18} />
-            ) : (
-              <IconBluetooth size={18} />
-            )}
+            {iconForConnection(device.connection, { size: 18 })}
           </div>
           <div className="dev-info">
             <div className="n">{device.name}</div>

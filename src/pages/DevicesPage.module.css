@@ -1,0 +1,76 @@
+.transportGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 10px;
+}
+
+.transportCard {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--panel-2);
+  border: 1px solid var(--border-soft);
+  cursor: pointer;
+  transition: border-color 0.25s var(--ease-flb),
+    background 0.25s var(--ease-flb), transform 0.25s var(--ease-flb);
+}
+
+.transportCard:hover {
+  border-color: color-mix(in srgb, var(--accent, var(--accent-2)) 45%, transparent);
+  transform: translateY(-1px);
+}
+
+.transportCardActive {
+  border-color: var(--accent, var(--accent-2));
+  background: var(--accent-soft);
+}
+
+.transportIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  background: var(--panel);
+  border: 1px solid var(--border-soft);
+  color: var(--text-dim);
+}
+
+.transportCardActive .transportIcon {
+  color: var(--accent-2, var(--accent));
+}
+
+.transportInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.transportName {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  color: var(--text);
+  text-transform: uppercase;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.transportMeta {
+  font-size: 10.5px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.transportCardActive .transportMeta {
+  color: var(--text-dim);
+}
