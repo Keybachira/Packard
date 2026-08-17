@@ -6,3 +6,5 @@ pub mod wasapi;
 pub mod loopback;
 /// One-shot microphone recording for the Auto Calibration flow.
 pub mod mic;
+/// Audio capture from the default input device (for continuous recognition).
+pub mod capture;

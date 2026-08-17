@@ -57,6 +57,16 @@ pub struct AppState {
     fingerprints: Mutex<HashMap<String, Fingerprint>>,
     /// Past recognition attempts, most recent first.
     recognition_history: Mutex<Vec<RecognitionEntry>>,
+    /// Flag indicando se a escuta contínua está ativa.
+    recognition_listening: Mutex<bool>,
+    /// Ring buffer compartilhado entre a thread de captura e o processador.
+    /// Tipo: Vec<f32> (mono) com tamanho fixo = sample_rate * BUFFER_SECONDS.
+    /// None até que a captura seja iniciada.
+    recognition_buffer: Mutex<Option<platform::capture::RingBuffer>>,
+    /// Controle de cooldown por faixa (track_id -> Instant do último match).
+    recognition_cooldown: Mutex<HashMap<String, Instant>>,
+    /// Handle para abortar o worker de processamento quando stop_recognition for chamado.
+    recognition_abort: Mutex<Option<AbortHandle>>,
 }
 
 impl Default for AppState {
@@ -84,6 +94,10 @@ impl Default for AppState {
             device_settings: Mutex::new(HashMap::new()),
             fingerprints: Mutex::new(HashMap::new()),
             recognition_history: Mutex::new(Vec::new()),
+            recognition_listening: Mutex::new(false),
+            recognition_buffer: Mutex::new(None),
+            recognition_cooldown: Mutex::new(HashMap::new()),
+            recognition_abort: Mutex::new(None),
         }
     }
 }
