@@ -7,6 +7,7 @@ mod music_store;
 mod platform;
 mod playback;
 mod profiles;
+mod recognition;
 mod remote;
 mod settings;
 
@@ -19,6 +20,7 @@ use music::{MusicEngine, PlaybackState, Playlist, Track};
 use music_store::MusicPersist;
 use platform::loopback::LoopbackCapture;
 use profiles::{AppProfileBinding, Profile, RoomProfile};
+use recognition::{Fingerprint, RecognitionEntry, RecognitionPersist};
 use remote::hub::RemoteHub;
 use remote::protocol::RemoteEvent;
 use remote::snapshot;
@@ -49,6 +51,12 @@ pub struct AppState {
     /// round-trip correctly when the UI re-selects a device instead of
     /// silently resetting to defaults.
     device_settings: Mutex<HashMap<String, DeviceSettings>>,
+    /// Cached audio fingerprints per library track id, computed lazily on
+    /// first recognition attempt and kept for the app's lifetime (not
+    /// persisted — cheap enough to rebuild each session).
+    fingerprints: Mutex<HashMap<String, Fingerprint>>,
+    /// Past recognition attempts, most recent first.
+    recognition_history: Mutex<Vec<RecognitionEntry>>,
 }
 
 impl Default for AppState {
@@ -74,6 +82,8 @@ impl Default for AppState {
             mini_geometry: Mutex::new(None),
             remote: RemoteHub::new(),
             device_settings: Mutex::new(HashMap::new()),
+            fingerprints: Mutex::new(HashMap::new()),
+            recognition_history: Mutex::new(Vec::new()),
         }
     }
 }
@@ -987,6 +997,108 @@ fn get_foreground_app(_state: State<AppState>) -> String {
     platform::foreground::current_foreground_process_name().unwrap_or_default()
 }
 
+// --- Music recognition ------------------------------------------------------
+//
+// Local-only: records a clip from the microphone, fingerprints it, and
+// matches it against fingerprints of the user's own scanned library — see
+// `recognition` for why this doesn't call out to an external identification
+// service.
+
+/// How long to listen for when identifying a track — longer than Auto
+/// Calibration's burst since a fingerprint needs enough melodic/rhythmic
+/// landmarks to match confidently.
+const RECOGNITION_CAPTURE_MS: u32 = 8000;
+/// How much of each library track to fingerprint. Matching only needs a
+/// shared excerpt, and decoding whole songs would make the first
+/// recognition attempt in a session slow for a large library.
+const RECOGNITION_TRACK_SECONDS: f32 = 30.0;
+
+fn now_millis() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RecognitionResult {
+    matched: bool,
+    track: Option<Track>,
+    confidence: f32,
+}
+
+#[tauri::command]
+fn recognize_from_microphone(app: tauri::AppHandle, state: State<AppState>) -> Result<RecognitionResult, String> {
+    let (samples, sample_rate) = platform::mic::record_default_input(RECOGNITION_CAPTURE_MS)?;
+    let query = recognition::fingerprint(&samples, sample_rate);
+
+    // Make sure every library track with a real file has a cached
+    // fingerprint before matching (computed once per session, reused after).
+    let track_paths: Vec<(String, String)> = {
+        let music = state.music.lock().map_err(err)?;
+        music.library.iter().filter_map(|t| t.path.clone().map(|p| (t.id.clone(), p))).collect()
+    };
+    for (id, path) in &track_paths {
+        let already_cached = state.fingerprints.lock().map(|m| m.contains_key(id)).unwrap_or(true);
+        if already_cached {
+            continue;
+        }
+        if let Ok((track_samples, track_sr)) = recognition::decode_mono_prefix(path, RECOGNITION_TRACK_SECONDS) {
+            let fp = recognition::fingerprint(&track_samples, track_sr);
+            if let Ok(mut cache) = state.fingerprints.lock() {
+                cache.insert(id.clone(), fp);
+            }
+        }
+    }
+
+    let (matched_track, confidence) = {
+        let cache = state.fingerprints.lock().map_err(err)?;
+        let candidates = cache.iter().map(|(id, fp)| (id.as_str(), fp));
+        match recognition::best_match(&query, candidates) {
+            Some((id, score)) if recognition::is_confident(score) => {
+                let music = state.music.lock().map_err(err)?;
+                (music.library.iter().find(|t| t.id == id).cloned(), score)
+            }
+            Some((_, score)) => (None, score),
+            None => (None, 0.0),
+        }
+    };
+
+    let entry = RecognitionEntry {
+        id: format!("rec-{}", now_millis()),
+        timestamp_ms: now_millis(),
+        matched_track_id: matched_track.as_ref().map(|t| t.id.clone()),
+        title: matched_track.as_ref().map(|t| t.title.clone()),
+        artist: matched_track.as_ref().map(|t| t.artist.clone()),
+        confidence,
+    };
+    if let Ok(mut history) = state.recognition_history.lock() {
+        history.insert(0, entry);
+        history.truncate(50);
+        let _ = RecognitionPersist { history: history.clone() }.save(&app);
+    }
+
+    Ok(RecognitionResult {
+        matched: matched_track.is_some(),
+        track: matched_track,
+        confidence,
+    })
+}
+
+#[tauri::command]
+fn get_recognition_history(state: State<AppState>) -> Vec<RecognitionEntry> {
+    state.recognition_history.lock().map(|h| h.clone()).unwrap_or_default()
+}
+
+#[tauri::command]
+fn clear_recognition_history(app: tauri::AppHandle, state: State<AppState>) -> Result<(), String> {
+    if let Ok(mut history) = state.recognition_history.lock() {
+        history.clear();
+    }
+    RecognitionPersist::default().save(&app)
+}
+
 // --- Realtime analyzer -----------------------------------------------------
 //
 // `get_spectrum` / `get_waveform` run a windowed FFT over the WASAPI loopback
@@ -1186,6 +1298,13 @@ pub fn run() {
                 }
             }
 
+            // Restore past recognition attempts from disk.
+            let loaded_history = RecognitionPersist::load(app.handle()).history;
+            let state = app.state::<AppState>();
+            if let Ok(mut history) = state.recognition_history.lock() {
+                *history = loaded_history;
+            }
+
             // Bring up the remote-control server (QR pairing + WebSocket), the
             // 1s position ticker, and the ~7Hz analyzer feed. Failures only
             // log — the app keeps going.
@@ -1239,6 +1358,9 @@ pub fn run() {
             get_profiles,
             get_app_profile_bindings,
             get_foreground_app,
+            recognize_from_microphone,
+            get_recognition_history,
+            clear_recognition_history,
             get_spectrum,
             get_waveform,
             get_analyzer_status,
