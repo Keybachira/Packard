@@ -35,6 +35,7 @@ impl std::fmt::Display for ConnectionType {
 
 /// A sound device discovered by the hardware layer.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct AudioDevice {
     pub id: String,
     pub name: String,
@@ -43,6 +44,9 @@ pub struct AudioDevice {
     pub volume: f32,
     pub muted: bool,
     pub supports_eq: bool,
+    /// True when this is the OS's current default endpoint for its data
+    /// flow (default playback device, or default recording device).
+    pub is_default: bool,
 }
 
 impl AudioDevice {
@@ -55,6 +59,7 @@ impl AudioDevice {
             volume: 0.0,
             muted: false,
             supports_eq: false,
+            is_default: false,
         }
     }
 }

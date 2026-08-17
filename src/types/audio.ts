@@ -16,6 +16,8 @@ export interface AudioDevice {
   volume: number;
   muted: boolean;
   supportsEq: boolean;
+  /** True when this is the OS's current default endpoint for its data flow. */
+  isDefault: boolean;
 }
 
 export interface EqBand {

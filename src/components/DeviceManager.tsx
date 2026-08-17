@@ -49,7 +49,18 @@ export default function DeviceManager({
             {iconForConnection(device.connection, { size: 18 })}
           </div>
           <div className="dev-info">
-            <div className="n">{device.name}</div>
+            <div className="n">
+              {device.name}
+              {device.isDefault && (
+                <span
+                  className="badge"
+                  style={{ marginLeft: 8, fontSize: 9 }}
+                  title="Dispositivo padrão do sistema"
+                >
+                  PADRÃO
+                </span>
+              )}
+            </div>
             <div className={`s ${device.connected ? "on" : ""}`}>
               <span className="d" />
               {device.connected

@@ -112,6 +112,7 @@ export default function DevicesPage() {
                   <SpecRow label="Profundidade de Bits" value="24-bit" />
                   <SpecRow label="Canais" value="2.0 (estéreo)" />
                   <SpecRow label="Conexão" value={connectionLabel(selected.connection)} />
+                  <SpecRow label="Padrão do Sistema" value={selected.isDefault ? "Sim" : "Não"} />
                 </div>
               </div>
             </div>

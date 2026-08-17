@@ -7,9 +7,10 @@ use std::sync::Mutex;
 
 /// Full set of Audio Lab parameters. Everything is stored so the frontend can
 /// render its current state; the DSP chain applies what is meaningful in
-/// software (preamp/gain, loudness, EQ shelves, compressor, limiter). The
-/// remaining knobs (balance, stereo width, spatial, crossfeed, noise
-/// reduction) are forwarded to the hardware backend when it is implemented.
+/// software (preamp/gain, loudness, EQ shelves, compressor, limiter, and —
+/// for stereo sources — balance, stereo width and spatial widening via
+/// `process_stereo`). The remaining knobs (crossfeed, noise reduction) are
+/// forwarded to the hardware backend when it is implemented.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct AudioLabParams {
@@ -126,5 +127,81 @@ impl DspEngine {
         sample = self.compressor.process(sample);
         sample = self.limiter.process(sample);
         sample
+    }
+}
+
+/// Reshape an already-processed stereo pair (post EQ/compressor/limiter,
+/// which run independently per channel) using balance, stereo width and a
+/// cheap spatial widening bump. All three operate on the same mid/side
+/// decomposition, so they're applied together after the mono chain rather
+/// than inside `process_frame`, which never sees both channels at once.
+pub fn process_stereo(params: &AudioLabParams, left: f32, right: f32) -> (f32, f32) {
+    // Balance: -100 (full left) .. 0 (center) .. +100 (full right). Attenuates
+    // the opposite channel, like a physical balance knob.
+    let bal = (params.balance / 100.0).clamp(-1.0, 1.0);
+    let mut l = left * (1.0 - bal.max(0.0));
+    let mut r = right * (1.0 + bal.min(0.0));
+
+    // Stereo width via mid/side scaling: 0% collapses to mono, 100% is
+    // untouched, 200% doubles the side signal for a wider image.
+    let width = (params.stereo_width / 100.0).max(0.0);
+    let mid = (l + r) * 0.5;
+    let side = (l - r) * 0.5 * width;
+    l = mid + side;
+    r = mid - side;
+
+    // Spatial: an extra side-signal boost on top of the width control,
+    // pending real HRTF/hardware spatial processing.
+    if params.spatial {
+        let mid = (l + r) * 0.5;
+        let side = (l - r) * 0.5 * 1.35;
+        l = mid + side;
+        r = mid - side;
+    }
+
+    (l, r)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn params_with(patch: impl FnOnce(&mut AudioLabParams)) -> AudioLabParams {
+        let mut p = AudioLabParams::default();
+        patch(&mut p);
+        p
+    }
+
+    #[test]
+    fn default_params_leave_stereo_pair_untouched() {
+        let params = AudioLabParams::default();
+        let (l, r) = process_stereo(&params, 0.4, -0.2);
+        assert!((l - 0.4).abs() < 1e-6);
+        assert!((r - (-0.2)).abs() < 1e-6);
+    }
+
+    #[test]
+    fn zero_width_collapses_to_mono() {
+        let params = params_with(|p| p.stereo_width = 0.0);
+        let (l, r) = process_stereo(&params, 1.0, -1.0);
+        assert!((l - 0.0).abs() < 1e-6);
+        assert!((r - 0.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn full_right_balance_silences_left_channel() {
+        let params = params_with(|p| p.balance = 100.0);
+        let (l, r) = process_stereo(&params, 0.5, 0.5);
+        assert!((l - 0.0).abs() < 1e-6);
+        assert!((r - 0.5).abs() < 1e-6);
+    }
+
+    #[test]
+    fn spatial_widens_the_side_signal() {
+        let narrow = process_stereo(&AudioLabParams::default(), 0.5, 0.1);
+        let wide = process_stereo(&params_with(|p| p.spatial = true), 0.5, 0.1);
+        let narrow_spread = (narrow.0 - narrow.1).abs();
+        let wide_spread = (wide.0 - wide.1).abs();
+        assert!(wide_spread > narrow_spread);
     }
 }

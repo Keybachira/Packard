@@ -6,7 +6,7 @@
 
 O objetivo é transformar o computador em um verdadeiro **Audio Control Center**, unindo uma interface moderna com um núcleo nativo de alto desempenho.
 
-**Estado atual:** player de música, equalizador de 10 bandas com presets, troca de dispositivo, analisador em tempo real e **controle remoto via celular** (PWA na mesma rede) já estão implementados e funcionais.
+**Estado atual:** player de música, biblioteca completa (playlists, fila, histórico, favoritos, mini-player), Device Engine com monitoramento automático de dispositivos, Audio Lab completo (equalizador de 10 bandas com presets, preamp, compressor, limiter, loudness, stereo width e áudio espacial), analisador em tempo real e **controle remoto via celular** (PWA na mesma rede) já estão implementados e funcionais. Fases 01 a 04 do roadmap concluídas.
 
 ---
 
@@ -913,7 +913,7 @@ Isso facilita manutenção e evolução.
 * [x] Controle de volume
 * [x] Mute
 * [x] Device switching
-* [ ] Device monitoring
+* [x] Device monitoring
 
 ---
 
@@ -927,21 +927,21 @@ Isso facilita manutenção e evolução.
 * [x] Favoritos
 * [x] Metadados
 * [x] Capas
-* [ ] Mini-player
+* [x] Mini-player
 
 ---
 
 ## Phase 04 — Audio Lab
 
 * [x] Equalizador (10 bandas)
-* [ ] Preamp
+* [x] Preamp
 * [x] Bass
 * [x] Treble
-* [ ] Compressor
-* [ ] Limiter
-* [ ] Loudness
-* [ ] Spatial Audio
-* [ ] Stereo Width
+* [x] Compressor
+* [x] Limiter
+* [x] Loudness
+* [x] Spatial Audio
+* [x] Stereo Width
 * [x] Presets (FLAT/CINEMA/MUSIC/GAME)
 
 ---

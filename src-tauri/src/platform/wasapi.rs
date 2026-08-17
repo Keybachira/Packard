@@ -3,7 +3,7 @@ use windows::core::PWSTR;
 use windows::Win32::Devices::FunctionDiscovery::PKEY_Device_FriendlyName;
 use windows::Win32::Media::Audio::Endpoints::IAudioEndpointVolume;
 use windows::Win32::Media::Audio::{
-    eCapture, eRender, EDataFlow, IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator,
+    eCapture, eConsole, eRender, EDataFlow, IMMDevice, IMMDeviceEnumerator, MMDeviceEnumerator,
     DEVICE_STATE_ACTIVE,
 };
 use windows::Win32::System::Com::StructuredStorage::PropVariantToStringAlloc;
@@ -126,6 +126,14 @@ impl Wasapi {
             return Vec::new();
         };
 
+        // The OS default for this data-flow (default speakers, or default
+        // microphone), used to flag the matching entry below. `eConsole` is
+        // the role Windows uses for normal app playback/capture.
+        let default_id = unsafe { enumerator.GetDefaultAudioEndpoint(flow, eConsole) }
+            .ok()
+            .and_then(|d| unsafe { d.GetId() }.ok())
+            .map(pwstr_to_string);
+
         let Ok(collection) = (unsafe { enumerator.EnumAudioEndpoints(flow, DEVICE_STATE_ACTIVE) })
         else {
             return Vec::new();
@@ -144,6 +152,7 @@ impl Wasapi {
             let name = Self::friendly_name(&device);
             let (volume, muted) = Self::read_endpoint_volume(&device).unwrap_or((0.72, false));
             let connection = guess_connection(&name);
+            let is_default = default_id.as_deref() == Some(id.as_str());
 
             devices.push(AudioDevice {
                 id,
@@ -153,6 +162,7 @@ impl Wasapi {
                 volume: (volume * 100.0).round(),
                 muted,
                 supports_eq: flow == eRender,
+                is_default,
             });
         }
 

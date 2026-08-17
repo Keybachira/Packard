@@ -263,15 +263,62 @@ export function AppProvider({ children }: { children: ReactNode }) {
     [devices, selectedId],
   );
 
-  const refreshDevices = useCallback(async () => {
+  // Tracks the previous poll's device list so background refreshes can
+  // detect what changed (plugged/unplugged, default endpoint switched)
+  // instead of just silently replacing the array.
+  const prevDevicesRef = useRef<AudioDevice[] | null>(null);
+
+  const refreshDevices = useCallback(async (opts?: { silent?: boolean }) => {
     try {
       const list = await api.listDevices();
+      const prev = prevDevicesRef.current;
+
+      if (prev) {
+        const prevIds = new Set(prev.map((d) => d.id));
+        const nextIds = new Set(list.map((d) => d.id));
+
+        for (const device of list) {
+          if (!prevIds.has(device.id)) {
+            notify(`Dispositivo conectado: ${device.name}`, "success");
+          }
+        }
+        for (const device of prev) {
+          if (!nextIds.has(device.id)) {
+            notify(`Dispositivo desconectado: ${device.name}`, "info");
+          }
+        }
+
+        const prevDefault = prev.find((d) => d.isDefault) ?? null;
+        const nextDefault = list.find((d) => d.isDefault) ?? null;
+        if (nextDefault && nextDefault.id !== prevDefault?.id) {
+          notify(`Dispositivo padrão do sistema: ${nextDefault.name}`, "info");
+        }
+      }
+      prevDevicesRef.current = list;
+
       setDevices(list);
-      setSelectedId((prev) => prev ?? list[0]?.id ?? null);
+      setSelectedId((current) => {
+        if (current && list.some((d) => d.id === current)) return current;
+        // The selected device vanished (unplugged) — fall back to the
+        // system default, or the first device available.
+        const fallback = list.find((d) => d.isDefault) ?? list[0] ?? null;
+        if (current && fallback) {
+          notify(`Dispositivo ativo desconectado. Usando ${fallback.name}.`, "info");
+        }
+        return fallback?.id ?? null;
+      });
     } catch (e) {
-      notify(`Erro ao listar dispositivos: ${e}`, "error");
+      if (!opts?.silent) notify(`Erro ao listar dispositivos: ${e}`, "error");
     }
   }, []);
+
+  // Periodically re-enumerate audio endpoints so plugging/unplugging a
+  // device (or the OS switching the default output) is picked up without
+  // the user having to hit "Atualizar" manually.
+  useEffect(() => {
+    const id = setInterval(() => refreshDevices({ silent: true }), 2500);
+    return () => clearInterval(id);
+  }, [refreshDevices]);
 
   useEffect(() => {
     refreshDevices().finally(() => setLoading(false));

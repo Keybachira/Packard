@@ -1,6 +1,7 @@
-use crate::audio::{AudioLabParams, DspEngine};
+use crate::audio::{process_stereo, AudioLabParams, DspEngine};
 use cpal::traits::{DeviceTrait, HostTrait};
 use rodio::{ChannelCount, DeviceSinkBuilder, MixerDeviceSink, Player, SampleRate, Source};
+use std::collections::VecDeque;
 use std::fs::File;
 use std::io::BufReader;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -46,7 +47,10 @@ const POLL_INTERVAL_SAMPLES: u32 = 2048;
 
 /// Wraps a decoded audio source and runs every sample through the app's EQ /
 /// compressor / limiter chain, one independent `DspEngine` per channel so
-/// stereo filter state never bleeds across L/R.
+/// stereo filter state never bleeds across L/R. For 2-channel sources, once a
+/// full L/R frame has been through the mono chain it also passes through
+/// `process_stereo` for balance/width/spatial, which needs both channels at
+/// once.
 struct DspSource<S> {
     inner: S,
     engines: Vec<DspEngine>,
@@ -54,6 +58,13 @@ struct DspSource<S> {
     shared: Arc<SharedDsp>,
     seen_version: u64,
     since_poll: u32,
+    /// Holds the current frame's samples (one per channel) while it's being
+    /// filled, and doubles as the output queue for already-stereo-processed
+    /// samples waiting to be returned one at a time.
+    frame: VecDeque<f32>,
+    /// Latest params snapshot, kept alongside the per-channel engines so
+    /// `process_stereo` has balance/width/spatial without re-locking.
+    params: AudioLabParams,
 }
 
 impl<S> DspSource<S>
@@ -75,6 +86,8 @@ where
             shared,
             seen_version: 0,
             since_poll: 0,
+            frame: VecDeque::with_capacity(channels),
+            params,
         }
     }
 
@@ -93,6 +106,7 @@ where
             for engine in self.engines.iter_mut() {
                 engine.apply_params(params.clone());
             }
+            self.params = params;
             self.seen_version = version;
         }
     }
@@ -105,12 +119,36 @@ where
     type Item = rodio::Sample;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if let Some(sample) = self.frame.pop_front() {
+            return Some(sample);
+        }
+
         self.maybe_refresh_params();
-        let sample = self.inner.next()?;
         let n = self.engines.len();
-        let processed = self.engines[self.channel % n].process_frame(sample);
-        self.channel = (self.channel + 1) % n;
-        Some(processed)
+
+        // Non-stereo sources (mono, 5.1, ...): process and emit each sample
+        // straight through, same as before.
+        if n != 2 {
+            let sample = self.inner.next()?;
+            let processed = self.engines[self.channel % n].process_frame(sample);
+            self.channel = (self.channel + 1) % n;
+            return Some(processed);
+        }
+
+        // Stereo: pull both channels of the frame through their own
+        // engine, then reshape the pair as one unit.
+        let left_in = self.inner.next()?;
+        let left = self.engines[0].process_frame(left_in);
+        let right = match self.inner.next() {
+            Some(s) => self.engines[1].process_frame(s),
+            None => {
+                // Odd sample count at end-of-stream; just emit the leftover.
+                return Some(left);
+            }
+        };
+        let (left, right) = process_stereo(&self.params, left, right);
+        self.frame.push_back(right);
+        Some(left)
     }
 }
 
