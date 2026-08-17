@@ -101,19 +101,21 @@ fn open_loopback_client() -> windows::core::Result<IAudioClient> {
     }
 }
 
-/// How the captured stream is packed, derived from the mix format.
-struct LoopbackFormat {
-    channels: usize,
+/// How the captured stream is packed, derived from the mix format. Shared
+/// with `platform::mic`, which reads the same WAVEFORMATEX shape off the
+/// default capture (microphone) endpoint for Auto Calibration.
+pub(crate) struct LoopbackFormat {
+    pub(crate) channels: usize,
     /// Bytes per single (mono) sample.
     bytes_per_sample: usize,
     /// Bytes per interleaved frame.
     block_align: usize,
     bits: u16,
     is_float: bool,
-    sample_rate: u32,
+    pub(crate) sample_rate: u32,
 }
 
-fn read_loopback_format(client: &IAudioClient) -> windows::core::Result<LoopbackFormat> {
+pub(crate) fn read_loopback_format(client: &IAudioClient) -> windows::core::Result<LoopbackFormat> {
     let format: *mut WAVEFORMATEX = unsafe { client.GetMixFormat()? };
     if format.is_null() {
         return Err(windows::core::Error::empty());
@@ -163,7 +165,7 @@ fn read_loopback_format(client: &IAudioClient) -> windows::core::Result<Loopback
 }
 
 /// Decode an interleaved PCM buffer into `f32` samples.
-fn convert_frames(data: *const u8, frames: usize, fmt: &LoopbackFormat) -> Vec<f32> {
+pub(crate) fn convert_frames(data: *const u8, frames: usize, fmt: &LoopbackFormat) -> Vec<f32> {
     let mut out = Vec::with_capacity(frames * fmt.channels);
     for frame in 0..frames {
         let base = unsafe { data.add(frame * fmt.block_align) };

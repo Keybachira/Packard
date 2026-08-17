@@ -13,25 +13,32 @@ const STEPS = [
 ];
 
 export default function CalibrationPage() {
-  const { runCalibration, calibrating, calibration, selectedId, notify } = useApp();
+  const { runCalibration, calibrating, calibration, selectedId, notify, onEq } = useApp();
   const [step, setStep] = useState(0);
 
   const start = async () => {
     setStep(0);
-    for (let i = 0; i < STEPS.length; i++) {
-      setStep(i);
-      await new Promise((r) => setTimeout(r, 600));
-    }
-    await runCalibration();
+    // The step readout is cosmetic — the real work (playing the pink-noise
+    // burst and recording the mic) takes about the same ~2.5s, so run both
+    // concurrently instead of animating first and only then calling the
+    // backend (which used to leave a dead pause after the "done" state).
+    const stepTimer = (async () => {
+      for (let i = 0; i < STEPS.length; i++) {
+        setStep(i);
+        await new Promise((r) => setTimeout(r, 500));
+      }
+    })();
+    await Promise.all([stepTimer, runCalibration()]);
   };
 
   return (
     <div className="page">
       <Panel title="CALIBRAÇÃO AUTOMÁTICA">
         <p className="page-lead" style={{ marginBottom: 16 }}>
-          O software reproduz tons de teste de frequência pela soundbar e os captura com o
-          microfone do dispositivo, medindo a resposta acústica do ambiente. Em seguida, calcula
-          uma curva de correção de EQ para o seu ambiente.
+          O software reproduz um estouro de ruído rosa (o sinal padrão para calibração acústica)
+          pela saída atual e o captura com o microfone padrão do Windows, medindo a resposta real
+          do ambiente por banda de frequência. Em seguida, calcula e aplica uma curva de correção
+          de EQ de 10 bandas. Requer um microfone configurado como dispositivo padrão de gravação.
         </p>
         <button className="btn-cta" style={{ width: "auto" }} onClick={start} disabled={!selectedId || calibrating}>
           {calibrating ? "CALIBRANDO…" : "CALIBRAR"}
@@ -99,8 +106,17 @@ export default function CalibrationPage() {
             </div>
           </Panel>
 
-          <button className="btn-solid" style={{ alignSelf: "flex-start" }} onClick={() => notify("Curva de calibração aplicada ao EQ do Audio Lab.")}>
-            Aplicar Calibração
+          <button
+            className="btn-solid"
+            style={{ alignSelf: "flex-start" }}
+            disabled={!selectedId}
+            onClick={async () => {
+              if (!selectedId || !calibration) return;
+              await onEq(calibration.curve);
+              notify("Curva de calibração reaplicada ao EQ do Audio Lab.", "success");
+            }}
+          >
+            Reaplicar ao EQ
           </button>
         </>
       )}

@@ -196,6 +196,31 @@ fn open_device(preferred_name: Option<&str>) -> Result<MixerDeviceSink, String> 
     DeviceSinkBuilder::open_default_sink().map_err(|e| e.to_string())
 }
 
+/// Play a pink-noise burst through the default output device for
+/// `duration_ms`, blocking the calling thread until it finishes. Pink noise
+/// (equal energy per octave) is the standard test signal for room/speaker
+/// calibration — it matches how the 10-band EQ splits the spectrum far
+/// better than plain white noise would. Used by Auto Calibration, run on its
+/// own thread and its own ephemeral output stream so it doesn't disturb
+/// `PlaybackEngine`'s state.
+pub fn play_calibration_burst(duration_ms: u32) -> Result<(), String> {
+    let sample_rate = SampleRate::new(48_000).expect("48000 is non-zero");
+    let source = rodio::source::noise::Pink::new(sample_rate)
+        .amplify(0.35)
+        .fade_in(Duration::from_millis(120))
+        .take_duration(Duration::from_millis(duration_ms as u64));
+
+    let device = DeviceSinkBuilder::open_default_sink().map_err(|e| e.to_string())?;
+    let player = Player::connect_new(device.mixer());
+    player.append(source);
+    player.play();
+
+    // Keep `device`/`player` alive for the burst's duration — dropping the
+    // sink tears the stream down immediately.
+    std::thread::sleep(Duration::from_millis(duration_ms as u64));
+    Ok(())
+}
+
 /// Owns the real output device + player for local file playback.
 pub struct PlaybackEngine {
     device: Option<MixerDeviceSink>,
@@ -281,7 +306,6 @@ impl PlaybackEngine {
         }
     }
 
-    #[allow(dead_code)]
     pub fn is_paused(&self) -> bool {
         self.player.as_ref().map(|p| p.is_paused()).unwrap_or(true)
     }

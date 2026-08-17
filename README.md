@@ -6,7 +6,7 @@
 
 O objetivo é transformar o computador em um verdadeiro **Audio Control Center**, unindo uma interface moderna com um núcleo nativo de alto desempenho.
 
-**Estado atual:** player de música, biblioteca completa (playlists, fila, histórico, favoritos, mini-player), Device Engine com monitoramento automático de dispositivos, Audio Lab completo (equalizador de 10 bandas com presets, preamp, compressor, limiter, loudness, stereo width e áudio espacial), analisador em tempo real e **controle remoto via celular** (PWA na mesma rede) já estão implementados e funcionais. Fases 01 a 04 do roadmap concluídas.
+**Estado atual:** player de música, biblioteca completa (playlists, fila, histórico, favoritos, mini-player), Device Engine com monitoramento automático de dispositivos, Audio Lab completo (equalizador de 10 bandas com presets, preamp, compressor, limiter, loudness, stereo width e áudio espacial), analisador em tempo real completo (espectro, forma de onda, picos, RMS, LUFS, campo estéreo e detecção de clipping), Smart Audio (calibração automática real via microfone + ruído rosa, perfis de app com alternância automática) e **controle remoto via celular** (PWA na mesma rede) já estão implementados e funcionais. Fases 01 a 06 do roadmap concluídas (exceto o item genérico "Audio optimization").
 
 ---
 
@@ -231,12 +231,12 @@ Visualização do áudio em tempo real.
 ### Modos
 
 * Spectrum (implementado — 48 bandas no desktop e no controle remoto)
-* Waveform
+* Waveform (implementado)
 * Frequency Analyzer
-* Peak Meter
-* RMS
-* LUFS
-* Stereo Field
+* Peak Meter (implementado)
+* RMS (implementado)
+* LUFS (implementado)
+* Stereo Field (implementado — correlação de fase, balanço e largura)
 
 Exemplo:
 
@@ -250,11 +250,12 @@ O analisador será alimentado pelo Audio Engine.
 
 ---
 
-# Auto Calibration
+# Auto Calibration (implementado)
 
-Sistema de calibração automática do áudio.
-
-O utilizador poderá iniciar uma análise utilizando um microfone.
+Sistema de calibração automática do áudio: o utilizador inicia uma análise que reproduz um
+estouro de ruído rosa pela saída atual e o captura com o microfone padrão do Windows,
+medindo a resposta real do ambiente por banda de frequência (FFT em `analyzer::band_levels_db`)
+e gerando uma curva de correção de EQ de 10 bandas, aplicada automaticamente.
 
 ```text
 Microfone
@@ -375,9 +376,10 @@ Os perfis poderão ser aplicados manualmente ou automaticamente.
 
 ---
 
-# Application Profiles
+# Application Profiles (implementado)
 
-Uma funcionalidade avançada permitirá associar configurações a aplicações específicas.
+Associa configurações de DSP a aplicações específicas (`AppProfileBinding`, vinculando um
+executável a um `Profile`).
 
 Exemplo:
 
@@ -399,7 +401,8 @@ VLC.exe
 Cinema Profile
 ```
 
-O SoundCore poderá detectar a aplicação ativa e aplicar automaticamente o perfil correspondente.
+O SoundCore detecta a janela em primeiro plano (Win32 `GetForegroundWindow`) e, quando a
+alternância automática está ativa nas Configurações, aplica automaticamente o perfil vinculado.
 
 ---
 
@@ -949,22 +952,22 @@ Isso facilita manutenção e evolução.
 ## Phase 05 — Analyzer
 
 * [x] Spectrum (48 bandas, desktop + remote)
-* [ ] Waveform
-* [ ] Peak Meter
-* [ ] RMS
-* [ ] LUFS
-* [ ] Stereo Analyzer
-* [ ] Clipping Detection
+* [x] Waveform
+* [x] Peak Meter
+* [x] RMS
+* [x] LUFS
+* [x] Stereo Analyzer
+* [x] Clipping Detection
 
 ---
 
 ## Phase 06 — Smart Audio
 
-* [ ] Auto Calibration
-* [ ] Room Profile
-* [ ] Automatic EQ
-* [ ] Application Profiles
-* [ ] Automatic profile switching
+* [x] Auto Calibration
+* [x] Room Profile
+* [x] Automatic EQ
+* [x] Application Profiles
+* [x] Automatic profile switching
 * [ ] Audio optimization
 
 ---

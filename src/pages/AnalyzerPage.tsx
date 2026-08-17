@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import Panel from "../components/Panel";
 import SpectrumAnalyzer from "../components/SpectrumAnalyzer";
-import { getAnalyzerStatus, getWaveform } from "../lib/deviceApi";
+import { getAnalyzerStatus, getStereoField, getWaveform, type StereoField } from "../lib/deviceApi";
 
 function WaveformCanvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -52,16 +52,87 @@ function WaveformCanvas() {
   return <canvas ref={canvasRef} className="canvas-surface" style={{ height: 100 }} aria-label="Forma de onda" />;
 }
 
-function Meter({ label, value }: { label: string; value: number }) {
-  const v = Math.max(0, Math.min(1, value));
+function Meter({
+  label,
+  value,
+  max = 1,
+  format,
+}: {
+  label: string;
+  value: number;
+  max?: number;
+  format?: (v: number) => string;
+}) {
+  const v = Math.max(0, Math.min(max, value));
+  const pct = (v / max) * 100;
   return (
     <div className="meter">
       <div className="meter-head">
         <span className="field-label">{label}</span>
-        <span className="num" style={{ fontSize: 11, color: "var(--text)" }}>{Math.round(v * 100)}%</span>
+        <span className="num" style={{ fontSize: 11, color: "var(--text)" }}>
+          {format ? format(v) : `${Math.round(pct)}%`}
+        </span>
       </div>
       <div className="meter-track">
-        <div className="meter-fill" style={{ width: `${v * 100}%` }} />
+        <div className="meter-fill" style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+/** Centered meter for signed metrics (-1..+1): correlation, balance. */
+function BipolarMeter({
+  label,
+  value,
+  leftLabel,
+  rightLabel,
+}: {
+  label: string;
+  value: number;
+  leftLabel: string;
+  rightLabel: string;
+}) {
+  const v = Math.max(-1, Math.min(1, value));
+  const pct = ((v + 1) / 2) * 100;
+  return (
+    <div className="meter">
+      <div className="meter-head">
+        <span className="field-label">{label}</span>
+        <span className="num" style={{ fontSize: 11, color: "var(--text)" }}>{v.toFixed(2)}</span>
+      </div>
+      <div className="meter-track" style={{ position: "relative" }}>
+        <div
+          style={{
+            position: "absolute",
+            left: "50%",
+            top: 0,
+            bottom: 0,
+            width: 1,
+            background: "var(--border)",
+          }}
+        />
+        <div
+          className="meter-fill"
+          style={{
+            position: "absolute",
+            top: 0,
+            bottom: 0,
+            left: `${Math.min(50, pct)}%`,
+            width: `${Math.abs(pct - 50)}%`,
+          }}
+        />
+      </div>
+      <div
+        style={{
+          display: "flex",
+          justifyContent: "space-between",
+          fontSize: 9.5,
+          color: "var(--text-faint)",
+          marginTop: 4,
+        }}
+      >
+        <span>{leftLabel}</span>
+        <span>{rightLabel}</span>
       </div>
     </div>
   );
@@ -74,6 +145,12 @@ export default function AnalyzerPage() {
   const [sampleRate, setSampleRate] = useState(48000);
   const [capturing, setCapturing] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [stereoField, setStereoField] = useState<StereoField>({
+    correlation: 1,
+    balance: 0,
+    width: 0,
+    mono: true,
+  });
 
   useEffect(() => {
     let alive = true;
@@ -87,6 +164,13 @@ export default function AnalyzerPage() {
         setSampleRate(s.sampleRate);
         setCapturing(s.captureAlive && !s.lastError && s.framesPushed > 0);
         setError(s.lastError);
+      } catch {
+        /* keep last values */
+      }
+      try {
+        const f = await getStereoField();
+        if (!alive) return;
+        setStereoField(f);
       } catch {
         /* keep last values */
       }
@@ -127,35 +211,64 @@ export default function AnalyzerPage() {
           </div>
         </Panel>
 
-        <Panel title="STATUS">
-          <div className="grid grid-2">
-            <div className={`box ${clipping ? "danger" : ""}`}>
-              <div className="box-label">Clipping</div>
-              <div className="box-value num" style={{ fontSize: 18 }}>{clipping ? "⚠" : "OK"}</div>
-            </div>
-            <div className="box">
-              <div className="box-label">Captura</div>
-              <div className="box-value num" style={{ fontSize: 18, color: capturing ? "var(--accent-2)" : "var(--danger)" }}>
-                {capturing ? "ATIVA" : "SILÊNCIO"}
-              </div>
-            </div>
-            <div className="box">
-              <div className="box-label">Profundidade de Bits</div>
-              <div className="box-value num" style={{ fontSize: 18 }}>float32</div>
-            </div>
-            <div className="box">
-              <div className="box-label">Taxa de Amostragem</div>
-              <div className="box-value num" style={{ fontSize: 18 }}>{(sampleRate / 1000).toFixed(1).replace(".", ",")} kHz</div>
-            </div>
-          </div>
-          {error && (
-            <div className="box danger" style={{ marginTop: 16 }}>
-              <div className="box-label">Erro de captura</div>
-              <div className="box-value num" style={{ fontSize: 11, lineHeight: 1.5 }}>{error}</div>
+        <Panel title="CAMPO ESTÉREO">
+          {stereoField.mono ? (
+            <p style={{ padding: "28px 0", textAlign: "center", fontSize: 12.5, color: "var(--text-faint)" }}>
+              Fonte mono ou sem áudio capturado ainda.
+            </p>
+          ) : (
+            <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              <BipolarMeter
+                label="Correlação de Fase"
+                value={stereoField.correlation}
+                leftLabel="FORA DE FASE"
+                rightLabel="EM FASE"
+              />
+              <BipolarMeter
+                label="Balanço"
+                value={stereoField.balance}
+                leftLabel="ESQUERDA"
+                rightLabel="DIREITA"
+              />
+              <Meter
+                label="Largura Estéreo"
+                value={stereoField.width}
+                max={2}
+                format={(v) => v.toFixed(2)}
+              />
             </div>
           )}
         </Panel>
       </div>
+
+      <Panel title="STATUS">
+        <div className="grid grid-2">
+          <div className={`box ${clipping ? "danger" : ""}`}>
+            <div className="box-label">Clipping</div>
+            <div className="box-value num" style={{ fontSize: 18 }}>{clipping ? "⚠" : "OK"}</div>
+          </div>
+          <div className="box">
+            <div className="box-label">Captura</div>
+            <div className="box-value num" style={{ fontSize: 18, color: capturing ? "var(--accent-2)" : "var(--danger)" }}>
+              {capturing ? "ATIVA" : "SILÊNCIO"}
+            </div>
+          </div>
+          <div className="box">
+            <div className="box-label">Profundidade de Bits</div>
+            <div className="box-value num" style={{ fontSize: 18 }}>float32</div>
+          </div>
+          <div className="box">
+            <div className="box-label">Taxa de Amostragem</div>
+            <div className="box-value num" style={{ fontSize: 18 }}>{(sampleRate / 1000).toFixed(1).replace(".", ",")} kHz</div>
+          </div>
+        </div>
+        {error && (
+          <div className="box danger" style={{ marginTop: 16 }}>
+            <div className="box-label">Erro de captura</div>
+            <div className="box-value num" style={{ fontSize: 11, lineHeight: 1.5 }}>{error}</div>
+          </div>
+        )}
+      </Panel>
     </div>
   );
 }

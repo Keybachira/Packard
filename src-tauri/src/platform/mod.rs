@@ -4,3 +4,5 @@ pub mod foreground;
 pub mod wasapi;
 /// System-wide audio capture (WASAPI loopback) for the realtime analyzer.
 pub mod loopback;
+/// One-shot microphone recording for the Auto Calibration flow.
+pub mod mic;

@@ -272,17 +272,72 @@ fn set_audio_lab(state: State<AppState>, _device_id: String, params: AudioLabPar
     Ok(())
 }
 
+/// Auto Calibration: play a pink-noise burst through the current output
+/// while recording the room's response on the default microphone, then turn
+/// that measurement into a 10-band correction curve. Runs a real WASAPI
+/// capture + FFT analysis (see `platform::mic` / `analyzer::band_levels_db`)
+/// rather than returning a canned curve — it fails with a clear error when
+/// there's no microphone available instead of pretending to measure one.
 #[tauri::command]
 fn run_calibration(state: State<AppState>, _device_id: String) -> Result<RoomProfile, String> {
-    let _ = state;
-    // Placeholder: the auto-calibration sweep would measure the room with the
-    // device mic and return a generated EQ profile.
-    let curve = vec![2.0, 3.0, 2.0, 0.0, -1.0, 0.0, 1.0, 2.0, 2.0, 1.0];
+    const BURST_MS: u32 = 2200;
+
+    // Duck the app's own playback for a clean measurement, restoring it
+    // exactly as it was once the burst is done.
+    let was_playing = state.playback.lock().map(|p| !p.is_paused()).unwrap_or(false);
+    if was_playing {
+        if let Ok(p) = state.playback.lock() {
+            p.pause();
+        }
+    }
+
+    let noise_thread = std::thread::spawn(move || {
+        let _ = playback::play_calibration_burst(BURST_MS + 400);
+    });
+    // Give the burst a moment to ramp up before we start listening.
+    std::thread::sleep(std::time::Duration::from_millis(250));
+    let capture = platform::mic::record_default_input(BURST_MS);
+    let _ = noise_thread.join();
+
+    if was_playing {
+        if let Ok(p) = state.playback.lock() {
+            p.resume();
+        }
+    }
+
+    let (samples, sample_rate) = capture?;
+
+    let centers = &BAND_FREQUENCIES;
+    let levels_db = analyzer::band_levels_db(&samples, sample_rate, centers);
+    let mean_db = levels_db.iter().sum::<f32>() / levels_db.len() as f32;
+
+    // Boost bands that measured quiet, cut ones that measured loud, so the
+    // perceived room response flattens toward the average.
+    let curve: Vec<f32> = levels_db.iter().map(|db| (mean_db - db).clamp(-9.0, 9.0)).collect();
+
+    // Bass resonance: whichever of the low bands (32/64/125 Hz) peaks
+    // furthest above the mean, a common symptom of room modes / boundary
+    // reinforcement.
+    let bass_idx = [0usize, 1, 2]
+        .into_iter()
+        .max_by(|&a, &b| (levels_db[a] - mean_db).total_cmp(&(levels_db[b] - mean_db)))
+        .unwrap_or(0);
+    let bass_resonance_hz = centers[bass_idx];
+
+    let correction_db = curve.iter().cloned().fold(0.0f32, |m, v| m.max(v.abs()));
+
+    // Stereo balance of the output signal itself (software/hardware chain),
+    // read from the same loopback tap the realtime analyzer uses — not a
+    // room measurement, but a real one.
+    let window = (state.tap.sample_rate() as usize * 3 / 5).max(4096);
+    let field = analyzer::stereo_field(&state.tap, window);
+    let stereo_imbalance_db = field.balance * 6.0;
+
     Ok(RoomProfile {
-        name: "Bedroom".into(),
-        bass_resonance_hz: 82.0,
-        correction_db: -3.2,
-        stereo_imbalance_db: 1.4,
+        name: "Ambiente Detectado".into(),
+        bass_resonance_hz,
+        correction_db,
+        stereo_imbalance_db,
         curve,
     })
 }
@@ -984,6 +1039,29 @@ fn get_analyzer_status(state: State<AppState>) -> AnalyzerStatus {
     }
 }
 
+/// Stereo-field metrics (phase correlation, balance, width) for the
+/// realtime analyzer's stereo panel.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct StereoFieldStatus {
+    correlation: f32,
+    balance: f32,
+    width: f32,
+    mono: bool,
+}
+
+#[tauri::command]
+fn get_stereo_field(state: State<AppState>) -> StereoFieldStatus {
+    let window = (state.tap.sample_rate() as usize * 3 / 5).max(4096);
+    let f = analyzer::stereo_field(&state.tap, window);
+    StereoFieldStatus {
+        correlation: f.correlation,
+        balance: f.balance,
+        width: f.width,
+        mono: f.mono,
+    }
+}
+
 // --- Mini (corner) window mode ---------------------------------------------
 
 /// Compact floating player size, matching the corner widget FLB.Music docks
@@ -1164,6 +1242,7 @@ pub fn run() {
             get_spectrum,
             get_waveform,
             get_analyzer_status,
+            get_stereo_field,
             get_settings,
             set_settings,
             enter_mini_mode,

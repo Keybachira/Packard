@@ -241,6 +241,17 @@ export async function getAnalyzerStatus(): Promise<AnalyzerStatus> {
   return invoke<AnalyzerStatus>("get_analyzer_status");
 }
 
+export interface StereoField {
+  correlation: number;
+  balance: number;
+  width: number;
+  mono: boolean;
+}
+
+export async function getStereoField(): Promise<StereoField> {
+  return invoke<StereoField>("get_stereo_field");
+}
+
 // --- Settings --------------------------------------------------------------
 
 export async function getAppSettings(): Promise<AppSettings> {

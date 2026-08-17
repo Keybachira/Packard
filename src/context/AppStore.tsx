@@ -346,11 +346,27 @@ export function AppProvider({ children }: { children: ReactNode }) {
       })
       .catch(() => {})
       .finally(() => setSettingsReady(true));
-    api
-      .getForegroundApp()
-      .then(setForegroundApp)
-      .catch(() => {});
   }, [refreshDevices]);
+
+  // Poll the foreground app so Application Profiles can react to it (both
+  // the "app in focus" display and automatic profile switching below).
+  useEffect(() => {
+    let cancelled = false;
+    const poll = () => {
+      api
+        .getForegroundApp()
+        .then((app) => {
+          if (!cancelled) setForegroundApp(app);
+        })
+        .catch(() => {});
+    };
+    poll();
+    const id = setInterval(poll, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, []);
 
   // Poll real playback state (position ticks from the actual audio backend,
   // and the queue can auto-advance server-side once a track finishes).
@@ -506,6 +522,34 @@ export function AppProvider({ children }: { children: ReactNode }) {
     },
     [selectedId],
   );
+
+  // Automatic profile switching: when enabled, applies the bound profile's
+  // DSP settings the moment a linked executable takes focus. Keyed on
+  // (enabled flag + foreground app) so toggling the setting on re-evaluates
+  // immediately, but re-polling the same still-focused app doesn't reapply
+  // (and re-notify) on every tick.
+  const autoSwitchKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    const key = `${appSettings.profileAutoSwitch}:${foregroundApp ?? ""}`;
+    if (autoSwitchKeyRef.current === key) return;
+    autoSwitchKeyRef.current = key;
+
+    if (!appSettings.profileAutoSwitch || !foregroundApp) return;
+
+    const lower = foregroundApp.toLowerCase();
+    const binding = bindings.find((b) => b.enabled && b.app.toLowerCase() === lower);
+    if (!binding) return;
+    const profile = profiles.find((p) => p.id === binding.profileId);
+    if (!profile) return;
+
+    setAudioLab({
+      bass: profile.bass,
+      treble: profile.treble,
+      spatial: profile.spatial,
+      loudness: profile.loudness,
+    });
+    notify(`Perfil "${profile.name}" aplicado automaticamente (${foregroundApp})`, "info");
+  }, [foregroundApp, appSettings.profileAutoSwitch, bindings, profiles, setAudioLab, notify]);
 
   const runCalibration = useCallback(async () => {
     if (!selectedId) return;
