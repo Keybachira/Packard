@@ -9,6 +9,8 @@ import type {
   PlaybackState,
   Playlist,
   Profile,
+  RecognitionEntry,
+  RecognitionResult,
   RemoteState,
   RoomProfile,
   SubwooferState,
@@ -288,6 +290,26 @@ export async function windowIsMaximized(): Promise<boolean> {
 
 export async function windowClose(): Promise<void> {
   await invoke("window_close");
+}
+
+// --- Music recognition ------------------------------------------------------
+
+/** Record ~8s from the mic and identify the track against the local library. */
+export async function recognizeFromMicrophone(): Promise<RecognitionResult> {
+  return invoke<RecognitionResult>("recognize_from_microphone");
+}
+
+export async function getRecognitionHistory(): Promise<RecognitionEntry[]> {
+  return invoke<RecognitionEntry[]>("get_recognition_history");
+}
+
+export async function clearRecognitionHistory(): Promise<void> {
+  await invoke("clear_recognition_history");
+}
+
+/** Save the last mic clip as a WAV in the library folder and add it as a track. */
+export async function addRecognizedToLibrary(title?: string): Promise<Track> {
+  return invoke<Track>("add_recognized_to_library", { title: title ?? null });
 }
 
 // --- Remote control ----------------------------------------------------

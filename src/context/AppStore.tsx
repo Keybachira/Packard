@@ -37,6 +37,7 @@ export type SectionId =
   | "calibration"
   | "devices"
   | "analyzer"
+  | "recognition"
   | "profiles"
   | "appProfiles"
   | "remote"

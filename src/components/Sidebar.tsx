@@ -2,6 +2,7 @@ import { useState, type ReactNode } from "react";
 import { useApp, type SectionId } from "../context/AppStore";
 import MiniPlayer from "./MiniPlayer";
 import {
+  IconFingerprint,
   IconHeadphones,
   IconHome,
   IconLibrary,
@@ -21,6 +22,7 @@ const SECTIONS: { id: SectionId; label: string; icon: ReactNode }[] = [
   { id: "calibration", label: "Calibração", icon: <IconMic size={18} /> },
   { id: "devices", label: "Dispositivos", icon: <IconSpeaker size={18} /> },
   { id: "analyzer", label: "Analisador", icon: <IconPulse size={18} /> },
+  { id: "recognition", label: "Reconhecimento", icon: <IconFingerprint size={18} /> },
   { id: "profiles", label: "Perfis", icon: <IconSliders size={18} /> },
   { id: "appProfiles", label: "Perfis de Apps", icon: <IconLibrary size={18} /> },
   { id: "remote", label: "Controle Remoto", icon: <IconSmartphone size={18} /> },

@@ -65,6 +65,10 @@ pub struct AppState {
     /// Tipo: Vec<f32> (mono) com tamanho fixo = sample_rate * BUFFER_SECONDS.
     /// None até que a captura seja iniciada.
     recognition_buffer: Mutex<Option<platform::capture::RingBuffer>>,
+    /// Último trecho de microfone capturado por `recognize_from_microphone`
+    /// (mono + sample rate), retido para o comando "guardar na biblioteca"
+    /// reutilizar o mesmo áudio em vez de regravar.
+    last_recognition_clip: Mutex<Option<(Vec<f32>, u32)>>,
     /// Controle de cooldown por faixa (track_id -> Instant do último match).
     recognition_cooldown: Mutex<HashMap<String, Instant>>,
     /// Handle para abortar o worker de processamento quando stop_recognition for chamado.
@@ -98,6 +102,7 @@ impl Default for AppState {
             recognition_history: Mutex::new(Vec::new()),
             recognition_listening: Mutex::new(false),
             recognition_buffer: Mutex::new(None),
+            last_recognition_clip: Mutex::new(None),
             recognition_cooldown: Mutex::new(HashMap::new()),
             recognition_abort: Mutex::new(None),
         }
@@ -1047,6 +1052,11 @@ struct RecognitionResult {
 #[tauri::command]
 fn recognize_from_microphone(app: tauri::AppHandle, state: State<AppState>) -> Result<RecognitionResult, String> {
     let (samples, sample_rate) = platform::mic::record_default_input(RECOGNITION_CAPTURE_MS)?;
+    // Keep the clip around so "guardar na biblioteca" can reuse this exact
+    // recording instead of asking the user to play the audio again.
+    if let Ok(mut clip) = state.last_recognition_clip.lock() {
+        *clip = Some((samples.clone(), sample_rate));
+    }
     let query = recognition::fingerprint(&samples, sample_rate);
 
     // Make sure every library track with a real file has a cached
@@ -1113,6 +1123,90 @@ fn clear_recognition_history(app: tauri::AppHandle, state: State<AppState>) -> R
         history.clear();
     }
     RecognitionPersist::default().save(&app)
+}
+
+/// Convert seconds since Unix epoch into a `(year, month, day, h, m, s)`
+/// civil date, so default recognition names are readable ("Reconhecimento
+/// 2026-08-18 14-05-33") without pulling in a date library.
+fn civil_from_epoch(secs: i64) -> (i64, u32, u32, u32, u32, u32) {
+    let days = secs.div_euclid(86_400);
+    let time = secs.rem_euclid(86_400);
+    let (h, mi, s) = (time / 3600, (time % 3600) / 60, time % 60);
+
+    let z = days + 719_468;
+    let era = z.div_euclid(146_097);
+    let doe = z.rem_euclid(146_097);
+    let yoe = (doe - doe / 1460 + doe / 36_524 - doe / 146_096) / 365;
+    let y = yoe + era * 400;
+    let doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+    let mp = (5 * doy + 2) / 153;
+    let d = (doy - (153 * mp + 2) / 5 + 1) as u32;
+    let m = if mp < 10 { mp + 3 } else { mp - 9 } as u32;
+    (if m <= 2 { y + 1 } else { y }, m, d, h as u32, mi as u32, s as u32)
+}
+
+/// Save the last recognized mic clip as a WAV inside the first configured
+/// library folder (`.../Recognitions/`), so the captured audio becomes a
+/// regular track: it is added to the in-memory library right away and, because
+/// it lives under a scanned folder, it survives app restarts and rescans.
+#[tauri::command]
+fn add_recognized_to_library(
+    app: tauri::AppHandle,
+    state: State<AppState>,
+    title: Option<String>,
+) -> Result<Track, String> {
+    let (samples, sample_rate) = {
+        let clip = state.last_recognition_clip.lock().map_err(err)?;
+        clip
+            .clone()
+            .ok_or_else(|| "Primeiro, reconheça uma música para poder guardá-la na biblioteca.".to_string())?
+    };
+
+    let settings = AppSettings::load(&app);
+    let library_folder = settings
+        .library_paths
+        .iter()
+        .find(|p| !p.trim().is_empty())
+        .ok_or_else(|| {
+            "Nenhuma pasta de biblioteca configurada. Adicione uma pasta nas Definições antes de guardar reconhecimentos."
+                .to_string()
+        })?;
+
+    let rec_dir = std::path::Path::new(library_folder).join("Recognitions");
+    std::fs::create_dir_all(&rec_dir)
+        .map_err(|e| format!("falha ao criar a pasta de reconhecimentos: {e}"))?;
+
+    let name = title
+        .as_ref()
+        .map(|t| library::track_name_sanitized(t))
+        .unwrap_or_else(|| {
+            let secs = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs() as i64)
+                .unwrap_or(0);
+            let (y, mo, d, h, mi, s) = civil_from_epoch(secs);
+            format!("Reconhecimento {y:04}-{mo:02}-{d:02} {h:02}-{mi:02}-{s:02}")
+        });
+
+    let path = rec_dir.join(format!("{name}.wav"));
+    library::write_wav_file(&path, &samples, sample_rate)?;
+
+    let requested_title = title.map(|t| t.trim().to_string()).filter(|t| !t.is_empty());
+    let mut track = library::track_from_path(&path)
+        .ok_or_else(|| "falha ao ler a faixa gravada".to_string())?;
+    if let Some(t) = requested_title {
+        track.title = t;
+    }
+
+    let mut music = state.music.lock().map_err(err)?;
+    if let Some(existing) = music.library.iter().find(|t| t.path.as_deref() == track.path.as_deref()) {
+        return Ok(existing.clone());
+    }
+    music.library.push(track.clone());
+    drop(music);
+
+    persist_music(&app, &state);
+    Ok(track)
 }
 
 // --- Realtime analyzer -----------------------------------------------------
@@ -1377,6 +1471,7 @@ pub fn run() {
             recognize_from_microphone,
             get_recognition_history,
             clear_recognition_history,
+            add_recognized_to_library,
             get_spectrum,
             get_waveform,
             get_analyzer_status,

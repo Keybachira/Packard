@@ -27,6 +27,7 @@ import AudioLabPage from "./pages/AudioLabPage";
 import CalibrationPage from "./pages/CalibrationPage";
 import DevicesPage from "./pages/DevicesPage";
 import AnalyzerPage from "./pages/AnalyzerPage";
+import RecognitionPage from "./pages/RecognitionPage";
 import ProfilesPage from "./pages/ProfilesPage";
 import AppProfilesPage from "./pages/AppProfilesPage";
 import RemotePage from "./pages/RemotePage";
@@ -81,6 +82,7 @@ function Shell() {
               {section === "calibration" && <CalibrationPage />}
               {section === "devices" && <DevicesPage />}
               {section === "analyzer" && <AnalyzerPage />}
+              {section === "recognition" && <RecognitionPage />}
               {section === "profiles" && <ProfilesPage />}
               {section === "appProfiles" && <AppProfilesPage />}
               {section === "remote" && <RemotePage />}

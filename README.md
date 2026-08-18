@@ -974,11 +974,11 @@ Isso facilita manutenção e evolução.
 
 ## Phase 07 — Recognition
 
-* [ ] Microphone capture
-* [ ] Audio fingerprint
-* [ ] Music recognition
-* [ ] Recognition history
-* [ ] Add recognized music to library
+* [x] Microphone capture
+* [x] Audio fingerprint
+* [x] Music recognition
+* [x] Recognition history
+* [x] Add recognized music to library
 
 ---
 

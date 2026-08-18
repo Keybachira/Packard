@@ -606,6 +606,20 @@ export function IconRefresh(p: IconProps) {
   );
 }
 
+export function IconFingerprint(p: IconProps) {
+  return (
+    <svg {...base(p)}>
+      <path d="M12 11a4 4 0 0 1 4 4c0 2-.4 4.2-1 6" />
+      <path d="M8 11a4 4 0 0 0-2 3.5c0 1.7.4 3.5 1 5" />
+      <path d="M12 5a6 6 0 0 0-6 6c0 1.2.2 2.4.5 3.6" />
+      <path d="M12 5a6 6 0 0 1 6 6c0 1.2-.2 2.4-.5 3.6" />
+      <path d="M9 3.4A7 7 0 0 1 19 11v1" />
+      <path d="M5 3.4A7 7 0 0 0 3 11v1" />
+      <path d="M12 12a2 2 0 0 1 2 2c0 1.7-.3 3.4-.8 5" />
+    </svg>
+  );
+}
+
 const CONNECTION_ICONS: Record<string, (p: IconProps) => ReactElement> = {
   usb: IconUsb,
   bluetooth: IconBluetooth,

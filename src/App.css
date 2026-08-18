@@ -74,3 +74,95 @@ input[type="range"]::-webkit-slider-thumb {
 input[type="range"]:hover::-webkit-slider-thumb {
   background: #fff;
 }
+
+/* --- Recognition page ----------------------------------------------------- */
+
+.rec-mic-btn {
+  position: relative;
+  border-radius: 999px;
+}
+.rec-mic-btn.listening {
+  animation: rec-pulse 1.4s ease-in-out infinite;
+}
+@keyframes rec-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-accent) 55%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 16px transparent;
+  }
+}
+
+.rec-bars {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 18px;
+}
+.rec-bars span {
+  width: 3px;
+  border-radius: 2px;
+  background: var(--color-accent);
+  animation: rec-eq 0.9s ease-in-out infinite;
+}
+.rec-bars span:nth-child(2) {
+  animation-delay: 0.18s;
+}
+.rec-bars span:nth-child(3) {
+  animation-delay: 0.36s;
+}
+.rec-bars span:nth-child(4) {
+  animation-delay: 0.54s;
+}
+.rec-bars span:nth-child(5) {
+  animation-delay: 0.72s;
+}
+@keyframes rec-eq {
+  0%,
+  100% {
+    height: 4px;
+  }
+  50% {
+    height: 18px;
+  }
+}
+
+.rec-art {
+  border-radius: 10px;
+  background: var(--color-surface);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rec-row {
+  display: grid;
+  grid-template-columns: 96px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.rec-name-input {
+  background: var(--color-surface);
+  color: var(--color-text);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12.5px;
+  font-family: inherit;
+  outline: none;
+}
+
+.rec-name-input:focus {
+  border-color: var(--accent);
+}
+
+.rec-name-input::placeholder {
+  color: var(--color-text-faint);
+}

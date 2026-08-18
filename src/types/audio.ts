@@ -147,6 +147,25 @@ export interface AppSettings {
   avatar: string;
 }
 
+// --- Music recognition ------------------------------------------------------
+
+/// Mirrors `RecognitionEntry` in `src-tauri/src/recognition.rs`.
+export interface RecognitionEntry {
+  id: string;
+  timestampMs: number;
+  matchedTrackId: string | null;
+  title: string | null;
+  artist: string | null;
+  confidence: number;
+}
+
+/// Mirrors `RecognitionResult` in `src-tauri/src/lib.rs`.
+export interface RecognitionResult {
+  matched: boolean;
+  track: Track | null;
+  confidence: number;
+}
+
 // --- Notifications -----------------------------------------------------
 
 export type ToastVariant = "info" | "success" | "error";
