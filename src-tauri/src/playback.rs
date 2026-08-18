@@ -1,12 +1,45 @@
 use crate::audio::{process_stereo, AudioLabParams, DspEngine};
 use cpal::traits::{DeviceTrait, HostTrait};
-use rodio::{ChannelCount, DeviceSinkBuilder, MixerDeviceSink, Player, SampleRate, Source};
+use rodio::decoder::DecoderBuilder;
+use rodio::{ChannelCount, Decoder, DeviceSinkBuilder, MixerDeviceSink, Player, SampleRate, Source};
 use std::collections::VecDeque;
 use std::fs::File;
 use std::io::BufReader;
+use std::path::Path;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
+
+/// Open `path` as a decoded audio source.
+///
+/// Gapless playback is deliberately **off**. Symphonia's MP3 demuxer computes
+/// the gapless frame count as `num_frames - enc_delay - enc_padding`, which
+/// panics on files whose LAME/Xing header claims more delay+padding than
+/// frames — common in tracks written by older or sloppy encoders. Those files
+/// are perfectly playable otherwise, so trading a few ms of encoder padding at
+/// the track edges for being able to play them at all is the right call.
+///
+/// The `catch_unwind` stays as a backstop for other malformed-file panics: an
+/// unwind here would otherwise propagate through a WebView2 callback on the
+/// main thread and take the whole app down.
+pub fn open_decoder(path: &str) -> Result<Decoder<BufReader<File>>, String> {
+    let file = File::open(path).map_err(|e| format!("failed to open '{path}': {e}"))?;
+    let hint = Path::new(path)
+        .extension()
+        .and_then(|e| e.to_str())
+        .unwrap_or_default()
+        .to_string();
+
+    std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
+        DecoderBuilder::new()
+            .with_data(BufReader::new(file))
+            .with_hint(&hint)
+            .with_gapless(false)
+            .build()
+    }))
+    .map_err(|_| format!("failed to decode '{path}': malformed or unsupported audio"))?
+    .map_err(|e| format!("failed to decode '{path}': {e}"))
+}
 
 /// Live Audio Lab parameters shared between the UI-facing Tauri commands and
 /// the realtime playback thread. The playback thread only ever polls
@@ -244,17 +277,7 @@ impl PlaybackEngine {
     /// on `device_name` (or the system default output), replacing whatever
     /// was playing before.
     pub fn play_file(&mut self, path: &str, dsp: Arc<SharedDsp>, device_name: Option<&str>) -> Result<(), String> {
-        let file = File::open(path).map_err(|e| format!("failed to open '{path}': {e}"))?;
-        // Guard against panics from the decoder (e.g. a malformed MP3 with a
-        // LAME/Xing gapless header whose delay + padding exceeds the frame
-        // count, which underflows symphonia's frame arithmetic). A panic here
-        // would otherwise unwind through a WebView2 callback on the main
-        // thread and abort the whole app.
-        let decoder = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            rodio::Decoder::new(BufReader::new(file))
-        }))
-        .map_err(|_| format!("failed to decode '{path}': malformed or unsupported audio"))?
-        .map_err(|e| format!("failed to decode '{path}': {e}"))?;
+        let decoder = open_decoder(path)?;
         let source = DspSource::new(decoder, dsp);
 
         let device = open_device(device_name)?;
@@ -275,12 +298,7 @@ impl PlaybackEngine {
     /// the real position is tracked via `base_offset_secs`.
     pub fn seek(&mut self, path: &str, dsp: Arc<SharedDsp>, device_name: Option<&str>, target_secs: f32) -> Result<(), String> {
         let target = Duration::from_secs_f32(target_secs.max(0.0));
-        let file = File::open(path).map_err(|e| format!("failed to open '{path}': {e}"))?;
-        let decoder = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            rodio::Decoder::new(BufReader::new(file))
-        }))
-        .map_err(|_| format!("failed to decode '{path}': malformed or unsupported audio"))?
-        .map_err(|e| format!("failed to decode '{path}': {e}"))?;
+        let decoder = open_decoder(path)?;
         let source = DspSource::new(decoder.skip_duration(target), dsp);
 
         let device = open_device(device_name)?;

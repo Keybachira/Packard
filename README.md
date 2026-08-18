@@ -986,7 +986,7 @@ Isso facilita manutenção e evolução.
 
 * [x] USB communication — transporte real via `hidapi` (`hardware::hid::HidTransport`: enumerate/open/write/read)
 * [x] HID support — `hidapi` integrado; reports com prefixo `0x00` para dispositivos sem report-id
-* [x] Bluetooth communication — descoberta de dispositivos BT reais via `BluetoothFindFirstDevice`/`BluetoothFindNextDevice`, fusão com os endpoints WASAPI em `list_devices` (marca como `Bluetooth` os endpoints cujo nome casa com um BT pareado); AVRCP in-band ainda por fazer
+* [x] Bluetooth communication — descoberta de dispositivos BT reais via `BluetoothFindFirstDevice`/`BluetoothFindNextDevice`, fusão com os endpoints WASAPI em `list_devices` (marca como `Bluetooth` os endpoints cujo nome casa com um BT pareado); AVRCP in-band via SystemMediaTransportControls (`platform::media_keys`): os botões play/pause/stop/next/previous do headset controlam o player e a sessão de média do Windows recebe título/artista/álbum e a timeline, sincronizados a cada segundo
 * [x] Manufacturer APIs — camada plugável `VendorCodec` (comando/estado encode-decode); ponto de inserção quando o VID/PID e protocolo forem conhecidos
 * [x] DSP communication — `hardware::protocol::{Command, DspStatus}` (power, volume, mute, EQ 10 bandas, preset, subwoofer, status) + codec simulado determinístico
 * [x] Advanced device controls — comandos `list_hardware_devices` e `hardware_command` (volume/mute/EQ/preset/subwoofer/power/status)

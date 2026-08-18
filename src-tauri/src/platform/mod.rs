@@ -8,3 +8,5 @@ pub mod loopback;
 pub mod mic;
 /// Audio capture from the default input device (for continuous recognition).
 pub mod capture;
+/// System media transport controls (AVRCP in-band control).
+pub mod media_keys;

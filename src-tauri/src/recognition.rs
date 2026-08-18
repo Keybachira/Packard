@@ -149,17 +149,13 @@ pub fn is_confident(score: f32) -> bool {
 }
 
 /// Decode up to `max_seconds` of `path` into mono f32 samples, for
-/// fingerprinting a library track. Never panics on a malformed file —
-/// mirrors the guard in `playback::PlaybackEngine::play_file`.
+/// fingerprinting a library track. Shares `playback::open_decoder`, so a track
+/// the player can handle is a track the matcher can fingerprint — and neither
+/// panics on a malformed file.
 pub fn decode_mono_prefix(path: &str, max_seconds: f32) -> Result<(Vec<f32>, u32), String> {
     use rodio::Source;
 
-    let file = std::fs::File::open(path).map_err(|e| format!("failed to open '{path}': {e}"))?;
-    let decoder = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        rodio::Decoder::new(std::io::BufReader::new(file))
-    }))
-    .map_err(|_| format!("failed to decode '{path}': malformed or unsupported audio"))?
-    .map_err(|e| format!("failed to decode '{path}': {e}"))?;
+    let decoder = crate::playback::open_decoder(path)?;
 
     let channels = decoder.channels().get().max(1) as usize;
     let sample_rate = decoder.sample_rate().get();

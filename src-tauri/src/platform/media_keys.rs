@@ -1,208 +1,209 @@
-use std::sync::{Arc, Mutex};
-use std::time::Duration;
-use tauri::{AppHandle, Manager, Runtime};
-use tauri::async_runtime::JoinHandle;
-use windows::core::{HSTRING, Interface, Result};
-use windows::Media::*;
-use windows::Win32::Foundation::HWND;
-use windows::Win32::System::WinRT::{self, ISystemMediaTransportControlsInterop, RoGetActivationFactory};
-use crate::{persist_music, broadcast_remote, AppState};
-use crate::music::MusicEngine;
-use crate::playback::PlaybackEngine;
-use crate::error::err;
+//! SystemMediaTransportControls (SMTC) bridge.
+//!
+//! Registers the app with the Windows media session so the OS media overlay,
+//! the keyboard media keys and — the reason this exists — AVRCP buttons on a
+//! connected Bluetooth headset drive our player in-band. The same SMTC
+//! instance also carries the now-playing metadata Windows shows on the flyout.
 
-// Helper to convert seconds to TimeSpan (100ns units)
-fn secs_to_timespan(secs: f32) -> windows::Win32::Foundation::TimeSpan {
-    windows::Win32::Foundation::TimeSpan {
-        Duration: (secs * 10_000_000.0) as i64,
+use std::time::Duration;
+
+use tauri::async_runtime::JoinHandle;
+use tauri::{AppHandle, Manager};
+use windows::core::{HSTRING, Ref, Result};
+use windows::Foundation::{TimeSpan, TypedEventHandler};
+use windows::Media::{
+    MediaPlaybackStatus, MediaPlaybackType, SystemMediaTransportControls,
+    SystemMediaTransportControlsButton, SystemMediaTransportControlsButtonPressedEventArgs,
+    SystemMediaTransportControlsTimelineProperties,
+};
+use windows::Win32::Foundation::HWND;
+use windows::Win32::System::WinRT::{ISystemMediaTransportControlsInterop, RoGetActivationFactory};
+
+use crate::{
+    broadcast_remote, persist_music, player_next_impl, player_pause_impl, player_play_impl,
+    player_previous_impl, AppState,
+};
+
+/// Converts seconds to a WinRT `TimeSpan` (100ns units).
+fn secs_to_timespan(secs: f32) -> TimeSpan {
+    TimeSpan {
+        Duration: (secs.max(0.0) as f64 * 10_000_000.0) as i64,
     }
 }
 
-/// Handles SystemMediaTransportControls for AVRCP in-band control.
+/// Owns the SMTC instance and the metadata we last pushed to it.
+///
+/// Lives inside `AppState` behind a `Mutex`, so the fields need no interior
+/// locking of their own. Lock order is always media_keys then music; never
+/// hold the music lock while reaching for this one.
 pub struct MediaKeys {
-    /// The SMTC instance, protected by a mutex for thread-safe access.
-    inner: Mutex<Option<SystemMediaTransportControls>>,
-    /// Last track ID for which we pushed metadata, to avoid redundant updates.
-    last_metadata_track: Mutex<Option<String>>,
+    controls: Option<SystemMediaTransportControls>,
+    /// Track id whose metadata is currently on the flyout, so the ticker does
+    /// not rewrite the display every second.
+    last_metadata_track: Option<String>,
 }
 
 impl MediaKeys {
     pub fn new() -> Self {
         Self {
-            inner: Mutex::new(None),
-            last_metadata_track: Mutex::new(None),
+            controls: None,
+            last_metadata_track: None,
         }
     }
 
-    /// Registers SMTC for the given window and starts the sync ticker.
-    pub fn register(&self, app_handle: &AppHandle, hwnd: HWND) -> Result<()> {
-        // Get the activation factory for SystemMediaTransportControlsInterop
-        let factory: ISystemMediaTransportControlsInterop = unsafe {
-            RoGetActivationFactory(&HSTRING::from("Windows.Media.SystemMediaTransportControlsInterop"))?
+    /// Attaches SMTC to `hwnd` and wires the transport buttons to the player.
+    pub fn register(&mut self, app: &AppHandle, hwnd: HWND) -> Result<()> {
+        let interop: ISystemMediaTransportControlsInterop = unsafe {
+            RoGetActivationFactory(&HSTRING::from(
+                "Windows.Media.SystemMediaTransportControls",
+            ))?
         };
-        // Get the SMTC instance for this window
-        let smtc: SystemMediaTransportControls = factory.GetForWindow(hwnd)?;
+        let controls: SystemMediaTransportControls = unsafe { interop.GetForWindow(hwnd)? };
 
-        // Enable SMTC and configure buttons
-        smtc.SetIsEnabled(true)?;
-        smtc.SetIsPlayEnabled(true)?;
-        smtc.SetIsPauseEnabled(true)?;
-        smtc.SetIsNextEnabled(true)?;
-        smtc.SetIsPreviousEnabled(true)?;
-        // Stop button optional; we enable it for completeness
-        smtc.SetIsStopEnabled(true)?;
+        controls.SetIsEnabled(true)?;
+        controls.SetIsPlayEnabled(true)?;
+        controls.SetIsPauseEnabled(true)?;
+        controls.SetIsStopEnabled(true)?;
+        controls.SetIsNextEnabled(true)?;
+        controls.SetIsPreviousEnabled(true)?;
 
-        // Set up the ButtonPressed event handler
-        let handler = TypedEventHandler::<SystemMediaTransportControls, SystemMediaTransportControlsButtonPressedEventArgs>::new(
-            {
-                let app_handle = app_handle.clone();
-                move |_sender, args| -> Result<()> {
-                    // Get the button pressed
-                    let button = args.Button()?;
-                    // Get app state to drive the player
-                    let state = app_handle.state::<AppState>();
-                    let music_state = state.music.lock().map_err(err)?;
-
-                    // Handle the button press
-                    match button {
-                        SystemMediaTransportControlsButton::Play => {
-                            // If paused, resume; if stopped, start playing
-                            if !music_state.playback.playing {
-                                if let Some(track_id) = &music_state.playback.track_id {
-                                    // Resume current track
-                                    let _ = player_play_impl(state);
-                                } else {
-                                    // Start first track
-                                    let _ = player_play_impl(state);
-                                }
-                            }
-                        }
-                        SystemMediaTransportControlsButton::Pause => {
-                            // Pause if playing
-                            if music_state.playback.playing {
-                                let _ = player_pause_impl(state);
-                            }
-                        }
-                        SystemMediaTransportControlsButton::Next => {
-                            let _ = player_next_impl(state.app_handle().clone(), state)?;
-                        }
-                        SystemMediaTransportControlsButton::Previous => {
-                            let _ = player_previous_impl(state.app_handle().clone(), state)?;
-                        }
-                        SystemMediaTransportControlsButton::Stop => {
-                            // Stop playback
-                            let mut music = state.music.lock().map_err(err)?;
-                            music.playback.playing = false;
-                            music.playback.position_secs = 0.0;
-                            // Notify remote and persist
-                            persist_music(&app_handle, &state);
-                            broadcast_remote(&state);
-                        }
-                        _ => {}
-                    }
-
-                    // Persist state and broadcast to remotes
-                    persist_music(&app_handle, &state);
-                    broadcast_remote(&state);
-
-                    // Update SMTC to reflect new state immediately
-                    let _ = Self::sync_from(&state);
-                    Ok(())
-                }
+        let handler = TypedEventHandler::<
+            SystemMediaTransportControls,
+            SystemMediaTransportControlsButtonPressedEventArgs,
+        >::new({
+            let app = app.clone();
+            move |_sender, args: Ref<SystemMediaTransportControlsButtonPressedEventArgs>| {
+                let button = args.ok()?.Button()?;
+                Self::handle_button(&app, button);
+                Ok(())
             }
-        );
+        });
+        controls.ButtonPressed(&handler)?;
 
-        // Subscribe to ButtonPressed events
-        smtc.ButtonPressed(&handler)?;
-
-        // Store the SMTC instance and the handler (to keep it alive)
-        *self.inner.lock().unwrap() = Some(smtc);
-        // We could store the handler if needed, but keeping it in scope is enough for now.
-        // For simplicity, we rely on the closure being captured by the SMTC subscription.
-
-        // Initial sync
-        let _ = Self::sync_from(&state);
+        self.controls = Some(controls);
+        self.push_state(&app.state::<AppState>());
         Ok(())
     }
 
-    /// Synchronizes SMTC state with the current music engine state.
-    pub fn sync_from(state: &AppState) -> Result<()> {
-        // Lock the SMTC (we need to access it; it's Send+Sync so OK across threads)
-        let smtc_guard = self.inner.lock().unwrap();
-        let Some(smtc) = &*smtc_guard else {
-            return Ok(());
+    /// Runs one transport button against the player.
+    ///
+    /// Deliberately holds no lock across the `player_*_impl` calls — those
+    /// lock the music engine themselves, so keeping a guard here would
+    /// deadlock.
+    fn handle_button(app: &AppHandle, button: SystemMediaTransportControlsButton) {
+        let state = app.state::<AppState>();
+
+        let playing = match state.music.lock() {
+            Ok(music) => music.playback.playing,
+            Err(_) => return,
         };
 
-        // Get current music state
-        let music_state = state.music.lock().map_err(err)?;
-        let playback = &music_state.playback;
-        let playing = playback.playing;
-        let track_id_opt = playback.track_id.as_ref();
+        let result = if button == SystemMediaTransportControlsButton::Play {
+            if playing {
+                Ok(())
+            } else {
+                player_play_impl(&state)
+            }
+        } else if button == SystemMediaTransportControlsButton::Pause {
+            if playing {
+                player_pause_impl(&state)
+            } else {
+                Ok(())
+            }
+        } else if button == SystemMediaTransportControlsButton::Next {
+            player_next_impl(&state)
+        } else if button == SystemMediaTransportControlsButton::Previous {
+            player_previous_impl(&state)
+        } else if button == SystemMediaTransportControlsButton::Stop {
+            let stopped = player_pause_impl(&state);
+            if let Ok(mut music) = state.music.lock() {
+                music.playback.position_secs = 0.0;
+            }
+            stopped
+        } else {
+            return;
+        };
 
-        // Update playback status
-        let status = if playing {
+        if let Err(e) = result {
+            eprintln!("media key: {e}");
+            return;
+        }
+
+        persist_music(app, &state);
+        broadcast_remote(&state);
+        Self::sync(app);
+    }
+
+    /// Pushes the current player state onto the OS media session. Cheap enough
+    /// to call every tick — metadata is only rewritten when the track changes.
+    fn push_state(&mut self, state: &AppState) {
+        let Some(controls) = self.controls.as_ref() else {
+            return;
+        };
+        let Ok(music) = state.music.lock() else {
+            return;
+        };
+
+        let status = if music.playback.playing {
             MediaPlaybackStatus::Playing
+        } else if music.playback.track_id.is_some() {
+            MediaPlaybackStatus::Paused
         } else {
             MediaPlaybackStatus::Stopped
         };
-        smtc.SetPlaybackStatus(status)?;
+        let _ = controls.SetPlaybackStatus(status);
 
-        // If we have a track, update metadata and timeline
-        if let Some(track_id) = track_id_opt {
-            // Check if we need to update metadata (only if track changed)
-            let mut last_track_guard = self.last_metadata_track.lock().unwrap();
-            if Some(track_id) != last_track_guard.as_deref() {
-                // Update metadata
-                if let Ok(updater) = smtc.DisplayUpdater() {
-                    updater.SetType(MediaPlaybackType::Music)?;
-                    if let Ok(music_props) = updater.MusicProperties() {
-                        // Get track from library
-                        if let Some(track) = music_state.library.iter().find(|t| t.id == *track_id) {
-                            let _ = music_props.SetTitle(&HSTRING::from(&track.title));
-                            let _ = music_props.SetArtist(&HSTRING::from(&track.artist));
-                            let _ = music_props.SetAlbumTitle(&HSTRING::from(&track.album));
-                            let _ = music_props.SetAlbumArtist(&HSTRING::from(&track.artist));
-                            // Genres optional; skip for now
-                            // TrackNumber optional; skip for now
-                        }
-                    }
-                    let _ = updater.Update();
+        let Some(track_id) = music.playback.track_id.clone() else {
+            self.last_metadata_track = None;
+            return;
+        };
+        let track = music.library.iter().find(|t| t.id == track_id);
+
+        if self.last_metadata_track.as_deref() != Some(track_id.as_str()) {
+            if let Ok(updater) = controls.DisplayUpdater() {
+                let _ = updater.SetType(MediaPlaybackType::Music);
+                if let (Ok(props), Some(track)) = (updater.MusicProperties(), track) {
+                    let _ = props.SetTitle(&HSTRING::from(&track.title));
+                    let _ = props.SetArtist(&HSTRING::from(&track.artist));
+                    let _ = props.SetAlbumTitle(&HSTRING::from(&track.album));
+                    let _ = props.SetAlbumArtist(&HSTRING::from(&track.artist));
                 }
-                *last_track_guard = Some(track_id.clone());
+                let _ = updater.Update();
             }
-
-            // Update timeline (position, duration)
-            if let Ok(updater) = smtc.DisplayUpdater() {
-                let mut timeline = SystemMediaTransportControlsTimelineProperties::new()?;
-                timeline.SetStartTime(secs_to_timespan(0.0))?;
-                timeline.SetEndTime(secs_to_timespan(track_id_opt.map_or(0.0, |id| {
-                    music_state.library.iter()
-                        .find(|t| t.id == id)
-                        .map(|t| t.duration_secs)
-                        .unwrap_or(0.0)
-                })))?;
-                timeline.SetPosition(secs_to_timespan(playback.position_secs))?;
-                smtc.UpdateTimelineProperties(&timeline)?;
-            }
-        } else {
-            // No track: clear metadata (optional) and set stopped
-            let _ = self.last_metadata_track.lock().unwrap().take();
+            self.last_metadata_track = Some(track_id);
         }
 
-        Ok(())
+        let duration = track.map(|t| t.duration_secs).unwrap_or(0.0);
+        if let Ok(timeline) = SystemMediaTransportControlsTimelineProperties::new() {
+            let _ = timeline.SetStartTime(secs_to_timespan(0.0));
+            let _ = timeline.SetEndTime(secs_to_timespan(duration));
+            let _ = timeline.SetPosition(secs_to_timespan(music.playback.position_secs));
+            let _ = controls.UpdateTimelineProperties(&timeline);
+        }
     }
 
-    /// Starts a background ticker that periodically syncs SMTC state.
+    /// Syncs the OS media session from anywhere holding an `AppHandle`.
+    pub fn sync(app: &AppHandle) {
+        let state = app.state::<AppState>();
+        if let Ok(mut keys) = state.media_keys.lock() {
+            keys.push_state(&state);
+        };
+    }
+
+    /// Keeps the flyout scrubber and play/pause glyph in step with playback.
     pub fn start_ticker(app: AppHandle) -> JoinHandle<()> {
         tauri::async_runtime::spawn(async move {
             let mut interval = tokio::time::interval(Duration::from_secs(1));
             loop {
                 interval.tick().await;
-                let _ = MediaKeys::sync_from(&app.state::<AppState>());
+                MediaKeys::sync(&app);
             }
         })
     }
 }
 
-unsafe impl Send for MediaKeys {}
-unsafe impl Sync for MediaKeys {}
+impl Default for MediaKeys {
+    fn default() -> Self {
+        Self::new()
+    }
+}
