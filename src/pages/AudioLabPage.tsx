@@ -15,7 +15,7 @@ function LabRow({ label, children }: { label: string; children: ReactNode }) {
 }
 
 export default function AudioLabPage() {
-  const { audioLab, setAudioLab, selectedId } = useApp();
+  const { audioLab, setAudioLab, selectedId, optimization, optimizing, runOptimization } = useApp();
   const disabled = !selectedId;
 
   return (
@@ -150,6 +150,41 @@ export default function AudioLabPage() {
             <p className="box-note">Amplia o palco sonoro. Repassado ao hardware quando suportado.</p>
           </div>
         </div>
+      </Panel>
+
+      <Panel
+        title="OTIMIZAÇÃO"
+        action={
+          <button className="btn-outline" onClick={() => void runOptimization()} disabled={disabled || optimizing}>
+            {optimizing ? "Medindo…" : "Otimizar"}
+          </button>
+        }
+      >
+        {optimization ? (
+          <div className="box">
+            <div style={{ display: "flex", gap: 18, flexWrap: "wrap", marginBottom: 10 }}>
+              <span className="box-label">
+                Pico {optimization.measuredPeak.toFixed(2)}
+              </span>
+              <span className="box-label">
+                {optimization.measuredLufs.toFixed(1)} LUFS
+              </span>
+              {optimization.clippingProtection && <span className="box-label">Clipping → Limiter</span>}
+              {optimization.compressorEnabled && <span className="box-label">Compressor</span>}
+              {optimization.loudnessEnabled && <span className="box-label">Loudness</span>}
+            </div>
+            <ul style={{ margin: 0, paddingLeft: 18, fontSize: 13, lineHeight: 1.6 }}>
+              {optimization.notes.map((note, i) => (
+                <li key={i}>{note}</li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <p className="box-note">
+            Mede alguns segundos do que está a tocar e ajusta o equalizador, o ganho e o limiter
+            automaticamente para o sinal ficar equilibrado e sem clipping.
+          </p>
+        )}
       </Panel>
     </div>
   );

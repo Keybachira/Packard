@@ -6,6 +6,10 @@ import type {
   AudioLabParams,
   ConnectionType,
   DeviceSettings,
+  HardwareCommand,
+  HardwareDevice,
+  HardwareDspStatus,
+  OptimizationResult,
   PlaybackState,
   Playlist,
   Profile,
@@ -70,6 +74,40 @@ export async function setAudioLab(
 
 export async function runCalibration(deviceId: string): Promise<RoomProfile> {
   return invoke<RoomProfile>("run_calibration", { deviceId });
+}
+
+/**
+ * Measure the signal currently playing through the loopback tap and fold
+ * safe adjustments into the Audio Lab chain (spectral flattening, clipping
+ * protection, compressor/loudness). Resolves with the applied params plus
+ * diagnostics.
+ */
+export async function runAudioOptimization(
+  deviceId: string,
+): Promise<OptimizationResult> {
+  return invoke<OptimizationResult>("run_audio_optimization", { deviceId });
+}
+
+// --- Phase 08: hardware (USB/HID) -------------------------------------------
+
+/** Enumerate USB devices exposed over HID. */
+export async function listHardwareDevices(): Promise<HardwareDevice[]> {
+  return invoke<HardwareDevice[]>("list_hardware_devices");
+}
+
+/**
+ * Send a DSP command to a hardware device. A `status` command resolves with
+ * the decoded device state; other commands resolve with `null` after the
+ * report is written.
+ */
+export async function hardwareCommand(
+  deviceId: string,
+  command: HardwareCommand,
+): Promise<HardwareDspStatus | null> {
+  return invoke<HardwareDspStatus | null>("hardware_command", {
+    deviceId,
+    command,
+  });
 }
 
 // --- Music engine ----------------------------------------------------------

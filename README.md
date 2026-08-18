@@ -6,7 +6,7 @@
 
 O objetivo é transformar o computador em um verdadeiro **Audio Control Center**, unindo uma interface moderna com um núcleo nativo de alto desempenho.
 
-**Estado atual:** player de música, biblioteca completa (playlists, fila, histórico, favoritos, mini-player), Device Engine com monitoramento automático de dispositivos, Audio Lab completo (equalizador de 10 bandas com presets, preamp, compressor, limiter, loudness, stereo width e áudio espacial), analisador em tempo real completo (espectro, forma de onda, picos, RMS, LUFS, campo estéreo e detecção de clipping), Smart Audio (calibração automática real via microfone + ruído rosa, perfis de app com alternância automática) e **controle remoto via celular** (PWA na mesma rede) já estão implementados e funcionais. Fases 01 a 06 do roadmap concluídas (exceto o item genérico "Audio optimization").
+**Estado atual:** player de música, biblioteca completa (playlists, fila, histórico, favoritos, mini-player), Device Engine com monitoramento automático de dispositivos, Audio Lab completo (equalizador de 10 bandas com presets, preamp, compressor, limiter, loudness, stereo width e áudio espacial), analisador em tempo real completo (espectro, forma de onda, picos, RMS, LUFS, campo estéreo e detecção de clipping), Smart Audio (calibração automática real via microfone + ruído rosa, otimização automática de equalização/clipping/dinâmica, perfis de app com alternância automática) e **controle remoto via celular** (PWA na mesma rede) já estão implementados e funcionais. Fases 01 a 06 do roadmap concluídas.
 
 ---
 
@@ -968,7 +968,7 @@ Isso facilita manutenção e evolução.
 * [x] Automatic EQ
 * [x] Application Profiles
 * [x] Automatic profile switching
-* [ ] Audio optimization
+* [x] Audio optimization
 
 ---
 
@@ -984,12 +984,12 @@ Isso facilita manutenção e evolução.
 
 ## Phase 08 — Hardware
 
-* [ ] USB communication
-* [ ] HID support
-* [ ] Bluetooth communication
-* [ ] Manufacturer APIs
-* [ ] DSP communication
-* [ ] Advanced device controls
+* [x] USB communication — transporte real via `hidapi` (`hardware::hid::HidTransport`: enumerate/open/write/read)
+* [x] HID support — `hidapi` integrado; reports com prefixo `0x00` para dispositivos sem report-id
+* [x] Bluetooth communication — descoberta de dispositivos BT reais via `BluetoothFindFirstDevice`/`BluetoothFindNextDevice`, fusão com os endpoints WASAPI em `list_devices` (marca como `Bluetooth` os endpoints cujo nome casa com um BT pareado); AVRCP in-band ainda por fazer
+* [x] Manufacturer APIs — camada plugável `VendorCodec` (comando/estado encode-decode); ponto de inserção quando o VID/PID e protocolo forem conhecidos
+* [x] DSP communication — `hardware::protocol::{Command, DspStatus}` (power, volume, mute, EQ 10 bandas, preset, subwoofer, status) + codec simulado determinístico
+* [x] Advanced device controls — comandos `list_hardware_devices` e `hardware_command` (volume/mute/EQ/preset/subwoofer/power/status)
 
 ---
 

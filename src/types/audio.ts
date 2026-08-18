@@ -127,6 +127,20 @@ export interface RoomProfile {
   curve: number[];
 }
 
+/// Result of the one-shot "Audio optimization" pass. Mirrors
+/// `OptimizationResult` in `src-tauri/src/audio/optimize.rs`.
+export interface OptimizationResult {
+  params: AudioLabParams;
+  /** Per-band EQ delta introduced by the flattening pass (0 = untouched). */
+  appliedEq: number[];
+  clippingProtection: boolean;
+  loudnessEnabled: boolean;
+  compressorEnabled: boolean;
+  measuredLufs: number;
+  measuredPeak: number;
+  notes: string[];
+}
+
 // --- App settings ----------------------------------------------------------
 
 export interface AppSettings {
@@ -244,4 +258,50 @@ export function defaultAudioLab(): AudioLabParams {
     gain: 0,
     preamp: 0,
   };
+}
+
+// --- Phase 08: hardware (USB/HID) ------------------------------------------
+
+export type HardwarePreset = "flat" | "cinema" | "music" | "game";
+
+/** Mirror of the Rust `hardware::protocol::SubwooferState` wire fields. */
+export interface HardwareSubwoofer {
+  gain: number;
+  frequency: number;
+  phase: number;
+  enabled: boolean;
+}
+
+/** Command accepted by `hardware_command`; adjacent-tagged in Rust. */
+export type HardwareCommand =
+  | { type: "power"; value: boolean }
+  | { type: "volume"; value: number }
+  | { type: "mute"; value: boolean }
+  | { type: "eq"; value: number[] }
+  | { type: "preset"; value: HardwarePreset }
+  | { type: "subwoofer"; value: HardwareSubwoofer }
+  | { type: "status" };
+
+/** Device DSP state decoded from a status report. */
+export interface HardwareDspStatus {
+  power: boolean;
+  volume: number;
+  muted: boolean;
+  eq: number[];
+  preset: HardwarePreset;
+  subwoofer: HardwareSubwoofer;
+}
+
+/** A USB device discovered over HID (`list_hardware_devices`). */
+export interface HardwareDevice {
+  id: string;
+  name: string;
+  vendorId: number;
+  productId: number;
+  usagePage: number;
+  usage: number;
+  interfaceNumber: number;
+  productString: string | null;
+  manufacturerString: string | null;
+  serialNumber: string | null;
 }

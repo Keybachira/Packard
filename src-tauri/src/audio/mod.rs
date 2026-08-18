@@ -1,6 +1,7 @@
 pub mod compressor;
 pub mod equalizer;
 pub mod limiter;
+pub mod optimize;
 
 use serde::{Deserialize, Serialize};
 use std::sync::Mutex;

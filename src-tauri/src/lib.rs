@@ -16,6 +16,8 @@ use audio::equalizer::BAND_FREQUENCIES;
 use audio::AudioLabParams;
 use hardware::{AudioDevice, ConnectionType, DeviceSettings, SubwooferState};
 use hardware::devices::DeviceRegistry;
+use hardware::protocol::{Command as HardwareCommand, DspStatus};
+use hardware::usb::{HardwareDevice, UsbBackend};
 use music::{MusicEngine, PlaybackState, Playlist, Track};
 use music_store::MusicPersist;
 use platform::loopback::LoopbackCapture;
@@ -139,6 +141,14 @@ fn list_devices(state: State<AppState>) -> Vec<AudioDevice> {
     let wasapi = platform::wasapi::Wasapi::new();
     let mut live = wasapi.enumerate_render_endpoints();
     live.extend(wasapi.enumerate_capture_endpoints());
+
+    // Phase 08: fold the Bluetooth radio's remembered devices into the same
+    // list. WASAPI endpoints whose friendly name matches a Bluetooth device
+    // are reclassified (Windows labels them with the BT name); paired devices
+    // that aren't active as endpoints are appended so they can be re-selected.
+    let bt = hardware::bluetooth::BluetoothBackend::new().enumerate();
+    merge_bluetooth(&mut live, &bt);
+
     let mut registry = match state.devices.lock() {
         Ok(g) => g,
         Err(_) => return live,
@@ -150,6 +160,28 @@ fn list_devices(state: State<AppState>) -> Vec<AudioDevice> {
     registry.list()
 }
 
+/// Merge the Bluetooth enumeration into the WASAPI device list: endpoints
+/// whose friendly name matches a known Bluetooth device get reclassified as
+/// `Bluetooth`, and paired devices with no corresponding endpoint are
+/// appended so the UI can still list (and re-select) them.
+fn merge_bluetooth(live: &mut Vec<AudioDevice>, bt: &[AudioDevice]) {
+    let bt_names: Vec<String> = bt.iter().map(|d| d.name.to_lowercase()).collect();
+    for device in live.iter_mut() {
+        let lower = device.name.to_lowercase();
+        if bt_names.iter().any(|n| n == &lower) {
+            device.connection = ConnectionType::Bluetooth;
+        }
+    }
+
+    let mut known: std::collections::HashSet<String> =
+        live.iter().map(|d| d.name.to_lowercase()).collect();
+    for device in bt {
+        if known.insert(device.name.to_lowercase()) {
+            live.push(device.clone());
+        }
+    }
+}
+
 #[tauri::command]
 fn connect_device(state: State<AppState>, id: String, _connection: ConnectionType) -> Result<AudioDevice, String> {
     let mut devices = state.devices.lock().map_err(err)?;
@@ -158,6 +190,28 @@ fn connect_device(state: State<AppState>, id: String, _connection: ConnectionTyp
         .ok_or_else(|| format!("device '{id}' not found"))?;
     device.connected = true;
     Ok(device.clone())
+}
+
+/// Phase 08 (Hardware): enumerate USB devices exposed over HID. Real device
+/// discovery; the UI can list the soundbar even before the vendor protocol is
+/// known (the codec picks the VID/PID once documented).
+#[tauri::command]
+fn list_hardware_devices() -> Result<Vec<HardwareDevice>, String> {
+    UsbBackend::new()?.enumerate_targets()
+}
+
+/// Phase 08 (Hardware): send a DSP command to a device over HID. A `status`
+/// command returns the decoded device state; any other command returns `None`
+/// after the report is written.
+#[tauri::command]
+fn hardware_command(device_id: String, command: HardwareCommand) -> Result<Option<DspStatus>, String> {
+    let backend = UsbBackend::new()?;
+    if matches!(&command, HardwareCommand::Status) {
+        Ok(Some(backend.read_status(&device_id, 500)?))
+    } else {
+        backend.send_command(&device_id, &command)?;
+        Ok(None)
+    }
 }
 
 #[tauri::command]
@@ -371,6 +425,33 @@ fn run_calibration(state: State<AppState>, _device_id: String) -> Result<RoomPro
         stereo_imbalance_db,
         curve,
     })
+}
+
+/// Audio Optimization: measure the signal currently playing through the
+/// loopback tap (a few seconds of it) and fold safe adjustments into the
+/// Audio Lab chain — spectral flattening, clipping protection, compressor
+/// and loudness for dynamic/quiet material. The returned `OptimizationResult`
+/// carries the full new parameter set plus diagnostics the UI can show.
+#[tauri::command]
+fn run_audio_optimization(state: State<AppState>, _device_id: String) -> Result<audio::optimize::OptimizationResult, String> {
+    let sample_rate = state.tap.sample_rate();
+    let window = (sample_rate as usize * 3).max(4096);
+
+    let samples = state.tap.snapshot(window);
+    let levels_db = analyzer::band_levels_db(&samples, sample_rate, &BAND_FREQUENCIES);
+    let (peak, rms, lufs) = analyzer::levels(&state.tap, window);
+    let field = analyzer::stereo_field(&state.tap, (sample_rate as usize * 3 / 5).max(4096));
+
+    let current = state.audio.lock().map_err(err)?.params.clone();
+    let result = audio::optimize::optimize(&current, &levels_db, &field, peak, rms, lufs);
+
+    {
+        let mut audio = state.audio.lock().map_err(err)?;
+        audio.apply_params(result.params.clone());
+    }
+    state.dsp.set(result.params.clone());
+
+    Ok(result)
 }
 
 // --- Music engine ---------------------------------------------------------
@@ -1429,6 +1510,8 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             list_devices,
             connect_device,
+            list_hardware_devices,
+            hardware_command,
             get_device_settings,
             set_volume,
             set_mute,
@@ -1437,6 +1520,7 @@ pub fn run() {
             set_subwoofer,
             set_audio_lab,
             run_calibration,
+            run_audio_optimization,
             get_library,
             scan_library,
             get_playlists,

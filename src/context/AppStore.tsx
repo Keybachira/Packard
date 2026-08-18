@@ -20,6 +20,7 @@ import type {
   Playlist,
   Profile,
   RoomProfile,
+  OptimizationResult,
   ToastItem,
   ToastVariant,
   Track,
@@ -105,6 +106,10 @@ interface AppStore {
   calibrating: boolean;
   runCalibration: () => Promise<void>;
 
+  optimization: OptimizationResult | null;
+  optimizing: boolean;
+  runOptimization: () => Promise<void>;
+
   library: Track[];
   playlists: Playlist[];
   queue: Track[];
@@ -166,6 +171,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const [calibration, setCalibration] = useState<RoomProfile | null>(null);
   const [calibrating, setCalibrating] = useState(false);
+  const [optimization, setOptimization] = useState<OptimizationResult | null>(null);
+  const [optimizing, setOptimizing] = useState(false);
 
   const [library, setLibrary] = useState<Track[]>([]);
   const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -567,6 +574,26 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [selectedId]);
 
+  const runOptimization = useCallback(async () => {
+    if (!selectedId) return;
+    setOptimizing(true);
+    try {
+      const result = await api.runAudioOptimization(selectedId);
+      setOptimization(result);
+      setAudioLabState(result.params);
+      notify(
+        result.notes.length
+          ? `Otimização: ${result.notes[0]}`
+          : "Otimização concluída",
+        "success",
+      );
+    } catch (e) {
+      notify(`Falha na otimização: ${e}`, "error");
+    } finally {
+      setOptimizing(false);
+    }
+  }, [selectedId]);
+
   const playTrack = useCallback(async (id: string) => {
     try {
       setPlayback(await api.playerPlay(id));
@@ -879,6 +906,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
     calibration,
     calibrating,
     runCalibration,
+    optimization,
+    optimizing,
+    runOptimization,
     library,
     playlists,
     queue,

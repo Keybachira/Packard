@@ -1,5 +1,7 @@
 pub mod bluetooth;
 pub mod devices;
+pub mod hid;
+pub mod protocol;
 pub mod usb;
 
 use serde::{Deserialize, Serialize};
@@ -74,7 +76,7 @@ pub struct DeviceSettings {
     pub subwoofer: SubwooferState,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SubwooferState {
     pub gain: f32,
     pub frequency: f32,
