@@ -1,6 +1,5 @@
-use cpal::{self, FromSample, SampleRate, Stream, StreamHandle};
+use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 
 /// Seconds of audio to keep in the ring buffer.
 const BUFFER_SECONDS: usize = 12;
@@ -54,14 +53,14 @@ impl RingBuffer {
 /// Start capturing audio from the default input device.
 ///
 /// Returns a handle to stop the stream and a shared ring buffer.
-pub fn start_capture(sample_rate: u32) -> Result<(StreamHandle, Arc<Mutex<RingBuffer>>), String> {
+pub fn start_capture(sample_rate: u32) -> Result<(cpal::Stream, Arc<Mutex<RingBuffer>>), String> {
     let host = cpal::default_host();
     let device = host
         .default_input_device()
         .ok_or_else(|| "No input device available".to_string())?;
     let config = cpal::StreamConfig {
         channels: 1,
-        sample_rate: SampleRate(sample_rate),
+        sample_rate,
         buffer_size: cpal::BufferSize::Default,
     };
 
@@ -89,5 +88,5 @@ pub fn start_capture(sample_rate: u32) -> Result<(StreamHandle, Arc<Mutex<RingBu
         .map_err(|e| format!("Failed to build input stream: {}", e))?;
 
     stream.play().map_err(|e| format!("Failed to start stream: {}", e))?;
-    Ok((stream.handle(), ring))
+    Ok((stream, ring))
 }

@@ -27,6 +27,8 @@ use remote::snapshot;
 use settings::AppSettings;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
+use std::time::Instant;
+use tauri::async_runtime::JoinHandle;
 use tauri::{Manager, PhysicalPosition, PhysicalSize, State, Window};
 
 /// App-wide state shared across Tauri commands.
@@ -66,7 +68,7 @@ pub struct AppState {
     /// Controle de cooldown por faixa (track_id -> Instant do último match).
     recognition_cooldown: Mutex<HashMap<String, Instant>>,
     /// Handle para abortar o worker de processamento quando stop_recognition for chamado.
-    recognition_abort: Mutex<Option<AbortHandle>>,
+    recognition_abort: Mutex<Option<JoinHandle<()>>>,
 }
 
 impl Default for AppState {
