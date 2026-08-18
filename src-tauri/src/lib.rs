@@ -32,6 +32,7 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 use tauri::async_runtime::JoinHandle;
 use tauri::{Manager, PhysicalPosition, PhysicalSize, State, Window};
+use crate::platform::media_keys::MediaKeys;
 
 /// App-wide state shared across Tauri commands.
 pub struct AppState {
@@ -75,6 +76,8 @@ pub struct AppState {
     recognition_cooldown: Mutex<HashMap<String, Instant>>,
     /// Handle para abortar o worker de processamento quando stop_recognition for chamado.
     recognition_abort: Mutex<Option<JoinHandle<()>>>,
+    /// SystemMediaTransportControls for AVRCP in-band control.
+    media_keys: Mutex<MediaKeys>,
 }
 
 impl Default for AppState {
@@ -107,6 +110,8 @@ impl Default for AppState {
             last_recognition_clip: Mutex::new(None),
             recognition_cooldown: Mutex::new(HashMap::new()),
             recognition_abort: Mutex::new(None),
+            /// SystemMediaTransportControls for AVRCP in-band control.
+            media_keys: Mutex::new(MediaKeys::new()),
         }
     }
 }
@@ -1472,7 +1477,17 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(AppState::default())
-        .setup(|app| {
+// Initialize SystemMediaTransportControls for AVRCP in-band control.
+         let app_handle = app.handle().clone();
+         let window = app.get_webview_window("main")
+             .ok_or_else(|| err("main window not found"))?;
+         let hwnd = window.hwnd()?;
+         {
+             let state = app.state::<AppState>();
+             let mut media_keys = state.media_keys.lock().unwrap();
+             media_keys.register(&app_handle, hwnd)?;
+         }
+         MediaKeys::start_ticker(app_handle);
             // If the user already configured library folders in a previous
             // session, scan them right away instead of showing demo tracks.
             let settings = AppSettings::load(app.handle());
